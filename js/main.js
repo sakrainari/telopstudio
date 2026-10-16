@@ -2,6 +2,7 @@ import {FONTS,ROLES,SET_NAMES,defaults,designSet,clone,uid,mergeStyle,saveLibrar
 import {parseBlock,parseScript,updateText,selectionRange,markRange} from './parser.js';
 import {loadFonts,render} from './renderer.js';
 import {copyPNG,savePNG,filename,download,exportZIP} from './exporter.js';
+import {initUserFonts,allFonts,weightOf,addFontFile,addLocalFont,removeFont,hasLocalFontAccess,systemFontFamilies} from './fonts.js';
 const $=id=>document.getElementById(id);
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const option=(value,label,selected)=>`<option value="${escape(value)}" ${selected===value?'selected':''}>${escape(label)}</option>`;
@@ -28,7 +29,7 @@ function updateHistoryButtons(){const h=history();$('undo').disabled=h.cursor===
 function showHistory(){const h=history();$('historyList').innerHTML=h.items.map((item,i)=>`<button data-history="${i}" class="${i===h.cursor?'active':''}">${i===h.cursor?'●':'○'} ${String(i).padStart(2,'0')}　${escape(item.name)}</button>`).join('');}
 function selectedRow(id){if(!current().rows.some(r=>r.id===id))return;current().selected=id;state.range=null;if(state.scope==='selection')state.scope='row';state.role=row().role;history().lastKey=null;syncAll();saveSoon();}
 function syncProjects(){$('projects').innerHTML=library.projects.map(p=>option(p.id,p.name,library.active)).join('');}
-function syncSets(){const selected=$('designSet').value;$('designSet').innerHTML='<optgroup label="デザインセット">'+Object.entries(SET_NAMES).map(([k,v])=>option(k,v,selected)).join('')+'</optgroup><optgroup label="マイセット">'+library.sets.map(s=>option(s.id,s.name,selected)).join('')+'</optgroup>';}
+function syncSets(){const selected=$('designSet').value;$('designSet').innerHTML='<optgroup label="サンプル">'+Object.entries(SET_NAMES).map(([k,v])=>option(k,v,selected)).join('')+'</optgroup><optgroup label="マイセット">'+library.sets.map(s=>option(s.id,s.name,selected)).join('')+'</optgroup>';}
 function syncCards(){const p=current();$('rowCount').textContent=`${p.rows.length} CUTS`;$('galleryCount').textContent=`${p.rows.length}枚`;
  $('cards').innerHTML=p.rows.map((r,i)=>`<article class="card ${r.id===p.selected?'active':''}" data-id="${r.id}"><div class="card-head"><input type="checkbox" aria-label="${i+1}枚目を選択" data-check ${state.checked.has(r.id)?'checked':''}><span class="card-number">${String(i+1).padStart(2,'0')}</span><select data-role aria-label="${i+1}枚目の役割">${Object.entries(ROLES).map(([k,v])=>option(k,v,r.role)).join('')}</select></div><textarea data-text rows="2" maxlength="5000" aria-label="${i+1}枚目のテロップ">${escape(r.text)}</textarea><div class="card-actions"><button data-action="large" title="選択文字を大きく">大</button><button data-action="red">赤</button><button data-action="yellow">黄</button><button data-action="clear">解除</button><button data-action="copy" class="push" title="画像をコピー">▣</button></div><div class="card-actions"><button data-action="up" ${i===0?'disabled':''} title="上へ移動">↑</button><button data-action="down" ${i===p.rows.length-1?'disabled':''} title="下へ移動">↓</button><button data-action="duplicate">複製</button><button data-action="delete" class="push">削除</button></div>${Object.keys(r.override).length?'<p class="card-note">● カード個別設定</p>':''}</article>`).join('')||'<p class="empty-list">最初の言葉から、はじめよう。<br>「＋ テロップ追加」で作成できます。</p>';
 }
@@ -49,13 +50,14 @@ function syncSettings(){const partial=state.scope==='selection';$('scope').value
  $('selectionLabel').textContent=state.range?`${state.range.end-state.range.start}文字を選択中`:'文字をドラッグして部分装飾';
  document.querySelectorAll('[data-quick]').forEach(b=>b.disabled=!state.range);
  const f=field;
- let html=group('文字',f('font','フォント','select',{values:FONTS.map(x=>[x,x])})+f('size','文字サイズ px','range',{min:12,max:240})+f('gradient','グラデーション','checkbox')+f('color','文字色 / 上','color')+f('color2','文字色 / 下','color'));
+ let html=group('文字',f('font','フォント','select',{values:fontOptions()})+f('size','文字サイズ px','range',{min:12,max:240})+f('gradient','グラデーション','checkbox')+f('color','文字色 / 上','color')+f('color2','文字色 / 下','color'));
  for(let i=0;i<3;i++)html+=group(`フチ ${i+1} · ${['内側','中間','外側'][i]}`,f(`edges.${i}.on`,'有効','checkbox')+f(`edges.${i}.color`,'色','color')+f(`edges.${i}.width`,'太さ px','range',{min:0,max:24}));
  html+=group('ドロップシャドウ',f('shadow.on','有効','checkbox')+f('shadow.blur','ぼかし','range',{min:0,max:50})+f('shadow.distance','距離','range',{min:0,max:60})+f('shadow.color','色','color'));
  if(!partial){html+=group('座布団・配置',f('align','文字揃え','select',{values:[['left','左'],['center','中央'],['right','右']]})+f('box.on','座布団を表示','checkbox')+f('box.color','背景色','color')+f('box.opacity','不透明度','range',{min:0,max:1,step:.05})+f('box.radius','角丸 px','range',{min:0,max:100})+f('box.padding','内側余白 px','range',{min:0,max:100})+f('box.border','枠線 px','range',{min:0,max:12})+f('box.borderColor','枠線色','color'));
  html+=group('自動強調',f('auto.on','数字・記号・括弧','checkbox')+f('auto.scale','拡大倍率','range',{min:1,max:2,step:.05})+f('auto.color','強調色','color'));}
  $('settings').innerHTML=html;
  $('settings').querySelectorAll('input,select').forEach(el=>el.disabled=state.scope!=='role'&&(!row()||(partial&&!state.range)));
+ syncFonts();
 }
 function applyPatch(patch,name,key){const r=row();if(state.scope==='selection'&&(!r||!state.range))return toast('先に入力欄で文字を選択してください。');if(state.scope==='row'&&!r)return;
  transaction(name,()=>{if(state.scope==='role')current().roles[state.role]=mergeStyle(current().roles[state.role],patch);else if(state.scope==='selection')markRange(r,state.range,patch);else r.override=patchMerge(r.override,patch);},key);
@@ -96,7 +98,7 @@ $('scope').onchange=()=>{state.scope=$('scope').value;if(state.scope==='role'&&r
 $('roleTabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(!b)return;state.role=b.dataset.tab;state.scope='role';syncSettings();};
 $('settings').addEventListener('input',e=>{const el=e.target,path=el.dataset.path;if(!path)return;const value=el.type==='checkbox'?el.checked:['range','number'].includes(el.type)?Number(el.value):el.value;if(el.type==='range')el.nextElementSibling.value=value;const title=el.closest('fieldset').querySelector('legend').textContent+'：'+el.closest('.field').querySelector('label').textContent+'を変更';applyPatch(patchPath(path,value),title,`${current().id}:${state.scope}:${state.role}:${row()?.id}:${state.range?.start}:${path}`);});
 $('resetStyle').onclick=()=>{if(state.scope==='selection'){if(!state.range)return;quick('inherit');return;}transaction('設定を初期値に戻す',()=>{if(state.scope==='role')current().roles[state.role]=defaults()[state.role];else if(row())row().override={};});syncSettings();syncCards();};
-$('applySet').onclick=()=>{const key=$('designSet').value,roles=Object.hasOwn(SET_NAMES,key)?designSet(key):library.sets.find(s=>s.id===key)?.roles;if(!roles)return;const target=$('setTarget').value,rows=current().rows.filter(r=>target==='all'||(target==='current'?r.id===current().selected:state.checked.has(r.id)));if(!rows.length)return toast('適用するカードを選んでください。');transaction('デザインセットを適用',()=>{for(const r of rows){r.override=clone(roles[r.role]);if(!$('keepMarks').checked)r.marks=Array.from(r.text,()=>null);}});syncCards();syncSettings();toast(`${rows.length}枚に適用しました。`);};
+$('applySet').onclick=()=>{const key=$('designSet').value,roles=Object.hasOwn(SET_NAMES,key)?designSet(key):library.sets.find(s=>s.id===key)?.roles;if(!roles)return;const target=$('setTarget').value,rows=current().rows.filter(r=>target==='all'||(target==='current'?r.id===current().selected:state.checked.has(r.id)));if(!rows.length)return toast('適用するカードを選んでください。');transaction('デザインセットを適用',()=>{for(const r of rows){const keptFont=rowStyle(r).font;r.override=clone(roles[r.role]);if($('keepFont').checked)r.override.font=keptFont;if(!$('keepMarks').checked)r.marks=Array.from(r.text,()=>null);}});syncCards();syncSettings();toast(`${rows.length}枚にサンプルを当てました。`);};
 $('saveSet').onclick=async()=>{const name=await askName('マイセットの名前','マイセット');if(!name)return;if(library.sets.length>=100)return toast('マイセットは100件までです。',true);const roles=clone(current().roles);if(row())roles[row().role]=clone(rowStyle(row()));library.sets.push({id:uid(),name,roles});syncSets();saveSoon();toast('5役割を保存しました。現在のカードのデザインも、その役割に取り込みました。');};
 $('projects').onchange=()=>{persist();library.active=$('projects').value;state.range=null;state.scope='row';state.checked.clear();state.cache.clear();state.role=row()?.role||'A';syncAll();saveSoon();};
 $('newProject').onclick=async()=>{const name=await askName('新規プロジェクト','新しいプロジェクト');if(!name)return;if(library.projects.length>=100)return toast('プロジェクトは100件までです。',true);const p=project(name,[parseBlock('')]);library.projects.push(p);library.active=p.id;state.range=null;state.scope='row';state.checked.clear();state.cache.clear();syncAll();saveSoon();$('editor').focus();};
@@ -115,7 +117,91 @@ $('jsonExport').onclick=()=>exportJSON(false);$('exportSets').onclick=()=>export
 let importMode='project';function chooseJSON(mode){importMode=mode;$('jsonFile').value='';$('jsonFile').click();}
 $('jsonImport').onclick=()=>chooseJSON('project');$('importSets').onclick=()=>chooseJSON('sets');
 $('jsonFile').onchange=async()=>{const file=$('jsonFile').files[0];if(!file)return;try{if(file.size>20*1024*1024)throw Error('JSONは20MB以内にしてください。');const incoming=validateLibrary(JSON.parse(await file.text()));if(library.sets.length+incoming.sets.length>100)throw Error('マイセットの合計が100件を超えます。');if(importMode==='project'){if(!incoming.projects.length)throw Error('プロジェクトが入っていません。');if(library.projects.length+incoming.projects.length>100)throw Error('プロジェクトの合計が100件を超えます。');library.projects.push(...incoming.projects);library.active=incoming.active;}else if(!incoming.sets.length)throw Error('マイセットが入っていません。');library.sets.push(...incoming.sets);state.range=null;state.scope='row';state.checked.clear();state.cache.clear();syncAll();saveSoon();toast('JSONを読み込みました。既存のプロジェクトは保持されています。');}catch(e){toast('読み込めません：'+e.message,true);}};
+// =============================================================
+// フォント選び（右パネル上部）と、自分のフォントの追加
+// =============================================================
+const SOURCE_LABEL={builtin:'',file:'追加したファイル',local:'PCのフォント',missing:'このPCに未登録'};
+function usedFonts(){
+  const set=new Set(),p=current();
+  for(const s of Object.values(p.roles))set.add(s.font);
+  for(const r of p.rows){if(r.override.font)set.add(r.override.font);for(const m of r.marks)if(m?.font)set.add(m.font);}
+  return set;
+}
+function fontEntries(){
+  const list=allFonts(),known=new Set(list.map(f=>f.family));
+  for(const f of usedFonts())if(f&&!known.has(f))list.push({family:f,source:'missing'});
+  return list;
+}
+function fontOptions(){return fontEntries().map(f=>[f.family,f.source==='missing'?`${f.family}（未登録）`:f.family]);}
+function syncFonts(){
+  const active=settingsStyle().font;
+  const sample=(row()?.text||'').replace(/\s+/g,'').slice(0,10)||'テロップ';
+  const disabled=state.scope!=='role'&&(!row()||(state.scope==='selection'&&!state.range));
+  $('fontTarget').textContent=state.scope==='role'?`${ROLES[state.role]}の共通設定に使う`:state.scope==='selection'?(state.range?'選んだ文字に使う':'文字を選ぶと使えます'):'このカードに使う';
+  $('fontList').innerHTML=fontEntries().map(f=>{
+    const removable=f.source==='file'||f.source==='local';
+    const tag=SOURCE_LABEL[f.source];
+    return `<div class="font-item${f.family===active?' active':''}${f.source==='missing'?' missing':''}">`
+      +`<button type="button" data-font="${escape(f.family)}" ${disabled?'disabled':''} title="${escape(f.family)}">`
+      +`<span class="font-sample" style="font-family:'${escape(f.family)}',sans-serif;font-weight:${weightOf(f.family)}">${escape(sample)}</span>`
+      +`<span class="font-name">${escape(f.family)}${tag?`<em>${tag}</em>`:''}</span></button>`
+      +(removable?`<button type="button" class="font-remove" data-remove-font="${escape(f.family)}" title="一覧から外す">×</button>`:'')
+      +'</div>';
+  }).join('');
+}
+function afterFontAdded(names){state.cache.clear();syncSettings();scheduleRender();toast(`${names.join('、')} を追加しました。一覧から選べます。`);}
+$('fontList').addEventListener('click',async e=>{
+  const rm=e.target.closest('[data-remove-font]');
+  if(rm){
+    const family=rm.dataset.removeFont;
+    if(!confirm(`「${family}」を一覧から外しますか？\nこのフォントを使っているテロップは、代わりのフォントで表示されます。`))return;
+    await removeFont(family);state.cache.clear();syncSettings();scheduleRender();toast(`「${family}」を一覧から外しました。`);return;
+  }
+  const b=e.target.closest('[data-font]');if(!b)return;
+  applyPatch({font:b.dataset.font},'フォントを変更');syncSettings();
+});
+$('fontAllCards').onclick=()=>{
+  const font=settingsStyle().font,p=current();
+  if(!confirm(`すべてのカード・すべての役割のフォントを「${font}」にしますか？\n（元に戻すボタンで戻せます）`))return;
+  transaction('フォントを全カードに適用',()=>{
+    for(const k of Object.keys(p.roles))p.roles[k].font=font;
+    for(const r of p.rows){delete r.override.font;r.marks=r.marks.map(m=>{if(!m||!('font' in m))return m;const {font:_,...rest}=m;return Object.keys(rest).length?rest:null;});}
+  });
+  syncAll();toast(`すべてのカードを「${font}」にしました。`);
+};
+$('fontFromFile').onclick=()=>{$('fontFile').value='';$('fontFile').click();};
+$('fontFile').onchange=async()=>{
+  const added=[];
+  for(const file of [...$('fontFile').files]){try{added.push(await addFontFile(file));}catch(e){toast(`${file.name}：${e.message}`,true);}}
+  if(added.length)afterFontAdded(added);
+};
+$('fontNameAdd').onclick=async()=>{
+  try{const name=await addLocalFont($('fontNameInput').value);$('fontNameInput').value='';afterFontAdded([name]);}catch(e){toast(e.message,true);}
+};
+$('fontNameInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();$('fontNameAdd').click();}});
+let systemFonts=[];
+function renderSystemFonts(){
+  const q=$('fontSearch').value.trim().toLowerCase(),added=new Set(allFonts().map(f=>f.family));
+  const list=systemFonts.filter(f=>f.toLowerCase().includes(q)).slice(0,300);
+  $('systemFontCount').textContent=`${systemFonts.length}書体のうち${list.length}件を表示${list.length>=300?'（名前で絞り込めます）':''}`;
+  $('systemFontList').innerHTML=list.map(f=>`<button type="button" data-system-font="${escape(f)}" ${added.has(f)?'disabled':''}>`
+    +`<span class="font-sample" style="font-family:'${escape(f)}',sans-serif">テロップ Aa 123</span>`
+    +`<span class="font-name">${escape(f)}${added.has(f)?'<em>追加済み</em>':''}</span></button>`).join('')||'<p class="hint">見つかりません。</p>';
+}
+$('fontFromPC').onclick=async()=>{
+  if(!hasLocalFontAccess())return toast('このブラウザではPCのフォント一覧を読めません（Chrome / Edge で使えます）。下の欄にフォント名を入力して追加できます。',true);
+  try{systemFonts=await systemFontFamilies();}catch(e){return toast('フォント一覧の読み取りが許可されませんでした。下の欄にフォント名を入力して追加できます。',true);}
+  $('fontSearch').value='';renderSystemFonts();$('fontDialog').showModal();$('fontSearch').focus();
+};
+$('fontSearch').addEventListener('input',renderSystemFonts);
+$('systemFontList').onclick=async e=>{
+  const b=e.target.closest('[data-system-font]');if(!b)return;
+  try{const name=await addLocalFont(b.dataset.systemFont,{skipCheck:true});renderSystemFonts();afterFontAdded([name]);}catch(err){toast(err.message,true);}
+};
+const fontInit=await initUserFonts();
 syncAll();
+if(fontInit.error)toast('追加フォントの保存場所を開けませんでした。追加フォントは今回だけ使えます。',true);
 if(location.protocol==='file:')toast('ES ModulesのためHTTPサーバーまたはGitHub Pagesで開いてください。',true);
 await loadFonts();state.fontReady=true;state.cache.clear();scheduleRender();
 if(FONTS.some(font=>!document.fonts.check(`${font==='Noto Sans JP'?900:['M PLUS Rounded 1c','Shippori Mincho B1'].includes(font)?800:400} 40px "${font}"`,'日本語テロップ')))toast('一部フォントを読み込めませんでした。代替フォントで表示しています。接続後に再読み込みしてください。',true);
+{const missing=[...usedFonts()].filter(f=>!allFonts().some(x=>x.family===f));if(missing.length)toast(`このPCに未登録のフォントがあります：${missing.join('、')}。「＋ 自分のフォントを追加」から追加してください。`,true);}

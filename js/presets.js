@@ -32,7 +32,8 @@ export function cleanStyle(input,partial=false){
  const b=base(),out={}; if(!input || typeof input!=='object')return partial?{}:b;
  const color=v=>typeof v==='string'&&/^#[\da-f]{6}$/i.test(v);
  const number=(v,min,max)=>typeof v==='number'&&Number.isFinite(v)?Math.max(min,Math.min(max,v)):undefined;
- for(const k of ['font','align'])if((k==='font'?FONTS:['left','center','right']).includes(input[k]))out[k]=input[k];
+ if(typeof input.font==='string'&&/^[^"'\\<>;{}]{1,100}$/.test(input.font))out.font=input.font;
+ if(['left','center','right'].includes(input.align))out.align=input.align;
  for(const k of ['color','color2'])if(color(input[k]))out[k]=input[k];
  if(typeof input.gradient==='boolean')out.gradient=input.gradient;
  const size=number(input.size,12,240);if(size!==undefined)out.size=size;

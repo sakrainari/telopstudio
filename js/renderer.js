@@ -1,7 +1,8 @@
-import {FONTS,mergeStyle} from './presets.js';
+import {mergeStyle} from './presets.js';
+import {allFonts,weightOf} from './fonts.js';
 import {tokens} from './parser.js';
-export function fontString(style){const weight=style.font==='Noto Sans JP'?900:['M PLUS Rounded 1c','Shippori Mincho B1'].includes(style.font)?800:400;return `${weight} ${style.size}px "${style.font}", sans-serif`;}
-export function loadFonts(text='日本語テロップ'){return Promise.allSettled(FONTS.map(font=>document.fonts.load(fontString({font,size:40}),text||'日本語テロップ')));}
+export function fontString(style){return `${weightOf(style.font)} ${style.size}px "${style.font}", sans-serif`;}
+export function loadFonts(text='日本語テロップ'){return Promise.allSettled(allFonts().map(({family:font})=>document.fonts.load(fontString({font,size:40}),text||'日本語テロップ')));}
 const canvas=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c;};
 export function crop(source){
  const ctx=source.getContext('2d',{willReadFrequently:true}),{width:w,height:h}=source,data=ctx.getImageData(0,0,w,h).data;
