@@ -2,6 +2,10 @@
 
 ビルド不要の透過PNGテロップメーカー。
 
+公開アプリ：[Telop Studio](https://sakrainari.github.io/telopstudio/)
+
+[使い方](https://sakrainari.github.io/telopstudio/manual.html) / [仕様書](https://sakrainari.github.io/telopstudio/specification.html)
+
 - `specification.html`：確定仕様書
 - `manual.html`：完成版の使い方・GitHub Pages公開手順・検証範囲
 - `index.html`：アプリ本体（HTTP/HTTPSで開く）
