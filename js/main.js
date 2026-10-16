@@ -50,10 +50,12 @@ function syncSettings(){const partial=state.scope==='selection';$('scope').value
  $('selectionLabel').textContent=state.range?`${state.range.end-state.range.start}文字を選択中`:'文字をドラッグして部分装飾';
  document.querySelectorAll('[data-quick]').forEach(b=>b.disabled=!state.range);
  const f=field;
- let html=group('文字',f('font','フォント','select',{values:fontOptions()})+f('size','文字サイズ px','range',{min:12,max:240})+f('gradient','グラデーション','checkbox')+f('color','文字色 / 上','color')+f('color2','文字色 / 下','color'));
- for(let i=0;i<3;i++)html+=group(`フチ ${i+1} · ${['内側','中間','外側'][i]}`,f(`edges.${i}.on`,'有効','checkbox')+f(`edges.${i}.color`,'色','color')+f(`edges.${i}.width`,'太さ px','range',{min:0,max:24}));
+ let html=group('文字',f('font','フォント','select',{values:fontOptions()})+f('size','文字サイズ px','range',{min:12,max:240})+f('fillOn','塗りを表示','checkbox')+f('gradient','グラデーション','checkbox')+f('color','文字色 / 上','color')+f('color2','文字色 / 下','color'));
+ for(let i=0;i<3;i++)html+=group(`フチ ${i+1}`,f(`edges.${i}.on`,'有効','checkbox')+f(`edges.${i}.color`,'色','color')+f(`edges.${i}.width`,'太さ px','range',{min:0,max:24})+f(`edges.${i}.position`,'位置','select',{values:[['outside','外側'],['center','中央'],['inside','内側']]}));
+ const detailOpen=$('strokeDetails')?.open;
+ html+=`<details id="strokeDetails" ${detailOpen?'open':''}><summary>線の詳細設定</summary>`+group('ストロークスタイル',f('lineJoin','角の結合','select',{values:[['round','ラウンド'],['miter','マイター'],['bevel','ベベル']]})+f('miterLimit','角の比率','range',{min:1,max:10,step:.1})+f('lineCap','線端','select',{values:[['butt','バット'],['round','丸型'],['square','角型']]})+'<p class="hint">線端は閉じた文字の輪郭では通常、見た目が変わりません。角の比率はマイター結合時に使います。</p>')+'</details>';
  html+=group('ドロップシャドウ',f('shadow.on','有効','checkbox')+f('shadow.blur','ぼかし','range',{min:0,max:50})+f('shadow.distance','距離','range',{min:0,max:60})+f('shadow.color','色','color'));
- if(!partial){html+=group('座布団・配置',f('align','文字揃え','select',{values:[['left','左'],['center','中央'],['right','右']]})+f('box.on','座布団を表示','checkbox')+f('box.color','背景色','color')+f('box.opacity','不透明度','range',{min:0,max:1,step:.05})+f('box.radius','角丸 px','range',{min:0,max:100})+f('box.padding','内側余白 px','range',{min:0,max:100})+f('box.border','枠線 px','range',{min:0,max:12})+f('box.borderColor','枠線色','color'));
+ if(!partial){html+=group('座布団・配置',f('align','文字揃え','select',{values:[['left','左'],['center','中央'],['right','右']]})+f('box.on','座布団を表示','checkbox')+f('box.mode','背景の範囲','select',{values:[['all','すべての行'],['line','1行ずつ']]})+f('box.color','背景色','color')+f('box.opacity','不透明度','range',{min:0,max:1,step:.05})+f('box.radius','角丸 px','range',{min:0,max:100})+f('box.padding','内側余白 px','range',{min:0,max:100})+f('box.border','枠線 px','range',{min:0,max:12})+f('box.borderColor','枠線色','color'));
  html+=group('自動強調',f('auto.on','数字・記号・括弧','checkbox')+f('auto.scale','拡大倍率','range',{min:1,max:2,step:.05})+f('auto.color','強調色','color'));}
  $('settings').innerHTML=html;
  $('settings').querySelectorAll('input,select').forEach(el=>el.disabled=state.scope!=='role'&&(!row()||(partial&&!state.range)));

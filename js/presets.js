@@ -2,8 +2,8 @@ export const FONTS = ['Noto Sans JP','Dela Gothic One','RocknRoll One','M PLUS R
 export const ROLES = {A:'話者A',B:'話者B',N:'ナレーション','※':'注釈','!':'衝撃'};
 export const clone = value => structuredClone(value);
 export const uid = () => crypto.randomUUID();
-const edge = (on,color,width) => ({on,color,width});
-const base = () => ({font:FONTS[0],size:88,color:'#ffffff',color2:'#ffcf59',gradient:false,edges:[edge(true,'#11131b',7),edge(true,'#427cff',7),edge(false,'#ff434f',6)],shadow:{on:true,blur:10,distance:8,color:'#000000'},box:{on:false,color:'#000000',opacity:.65,radius:18,padding:22,border:0,borderColor:'#111111'},auto:{on:true,scale:1.3,color:'#ffcf59'},align:'center'});
+const edge = (on,color,width) => ({on,color,width,position:'outside'});
+const base = () => ({font:FONTS[0],size:88,color:'#ffffff',color2:'#ffcf59',gradient:false,fillOn:true,lineJoin:'round',lineCap:'butt',miterLimit:2,edges:[edge(true,'#11131b',7),edge(true,'#427cff',7),edge(false,'#ff434f',6)],shadow:{on:true,blur:10,distance:8,color:'#000000'},box:{on:false,color:'#000000',opacity:.65,radius:18,padding:22,border:0,borderColor:'#111111',mode:'all'},auto:{on:true,scale:1.3,color:'#ffcf59'},align:'center'});
 export function defaults(){
   const A=base(),B=base(),N=base(),note=base(),bang=base();
   Object.assign(B,{font:FONTS[2],gradient:true,color:'#ffed6a',color2:'#ff902b'}); B.edges[1].color='#e64343';
@@ -36,14 +36,19 @@ export function cleanStyle(input,partial=false){
  if(['left','center','right'].includes(input.align))out.align=input.align;
  for(const k of ['color','color2'])if(color(input[k]))out[k]=input[k];
  if(typeof input.gradient==='boolean')out.gradient=input.gradient;
+ if(typeof input.fillOn==='boolean')out.fillOn=input.fillOn;
+ if(['round','miter','bevel'].includes(input.lineJoin))out.lineJoin=input.lineJoin;
+ if(['butt','round','square'].includes(input.lineCap))out.lineCap=input.lineCap;
+ const miter=number(input.miterLimit,1,10);if(miter!==undefined)out.miterLimit=miter;
  const size=number(input.size,12,240);if(size!==undefined)out.size=size;
  for(const [section,limits] of Object.entries({shadow:{blur:[0,50],distance:[0,60]},box:{opacity:[0,1],radius:[0,100],padding:[0,100],border:[0,12]},auto:{scale:[1,2]}})){
   const p=input[section]; if(!p||typeof p!=='object')continue;out[section]={};
   if(typeof p.on==='boolean')out[section].on=p.on;
+  if(section==='box'&&['all','line'].includes(p.mode))out.box.mode=p.mode;
   for(const k of ['color','borderColor'])if(color(p[k]))out[section][k]=p[k];
   for(const [k,range] of Object.entries(limits)){const n=number(p[k],...range);if(n!==undefined)out[section][k]=n;}
  }
- if(Array.isArray(input.edges))out.edges=b.edges.map((e,i)=>{const p=input.edges[i]||{},o={};if(typeof p.on==='boolean')o.on=p.on;if(color(p.color))o.color=p.color;const w=number(p.width,0,24);if(w!==undefined)o.width=w;return o;});
+ if(Array.isArray(input.edges))out.edges=b.edges.map((e,i)=>{const p=input.edges[i]||{},o={};if(typeof p.on==='boolean')o.on=p.on;if(color(p.color))o.color=p.color;if(['outside','center','inside'].includes(p.position))o.position=p.position;const w=number(p.width,0,24);if(w!==undefined)o.width=w;return o;});
  if(input.noAuto===true)out.noAuto=true;
  return partial?out:mergeStyle(b,out);
 }
