@@ -759,16 +759,12 @@ test("12: portrait preview grows vertically and expands without duplicating or c
   assert(
     await page
       .locator("#preview")
-      .evaluate((node) =>
-        node.parentElement.classList.contains("center-panel"),
-      ),
+      .evaluate((node) => Boolean(node.closest(".center-panel"))),
   );
   assert(
     await page
       .locator("#shortTools")
-      .evaluate((node) =>
-        node.parentElement.classList.contains("center-panel"),
-      ),
+      .evaluate((node) => Boolean(node.closest(".center-panel"))),
   );
   assert(
     await page
@@ -825,6 +821,157 @@ test("12: portrait preview grows vertically and expands without duplicating or c
   await page.locator("#closeExpandedPreview").click();
   await page.locator('[data-preview-mode="single"]').click();
   assert(await page.locator("#expandPreview").isHidden());
+});
+
+test("13: portrait and one live editor share space, including the expanded dialog", async (page) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const bounds = (id) => page.locator(`#${id}`).boundingBox();
+  const portrait = await bounds("shortStage");
+  const editor = await bounds("editor");
+  const tools = await bounds("shortTools");
+  const copy = await bounds("copy");
+  assert(
+    editor.x > portrait.x + portrait.width,
+    "editor sits beside the portrait",
+  );
+  assert(
+    tools.y < portrait.y + 20,
+    "placement controls start beside the portrait",
+  );
+  assert(
+    editor.y + editor.height <= 1080 && copy.y + copy.height <= 1080,
+    "typing and export are visible without scrolling the center panel",
+  );
+  for (const id of ["preview", "editor", "shortTools", "copy", "png"])
+    assert.equal(await page.locator(`#${id}`).count(), 1, `one ${id}`);
+
+  const outerScroll = await page
+    .locator(".center-panel")
+    .evaluate((node) => node.scrollTop);
+  await page
+    .locator(".reference-tools")
+    .evaluateAll((items) => items.forEach((item) => (item.open = true)));
+  await page
+    .locator("#editorColumn")
+    .evaluate((node) => (node.scrollTop = node.scrollHeight));
+  assert(
+    await page.locator("#editorColumn").evaluate((node) => node.scrollTop > 0),
+    "long controls scroll independently",
+  );
+  assert.deepEqual(
+    await bounds("shortStage"),
+    portrait,
+    "portrait stays visible while controls scroll",
+  );
+  assert.equal(
+    await page.locator(".center-panel").evaluate((node) => node.scrollTop),
+    outerScroll,
+  );
+  await page
+    .locator(".reference-tools")
+    .evaluateAll((items) => items.forEach((item) => (item.open = false)));
+  await page.locator("#editorColumn").evaluate((node) => (node.scrollTop = 0));
+
+  await page.locator("#editorRole").selectOption("A");
+  await page.locator("#editor").fill("隣で入力して確認\n続けて文字を装飾");
+  const selectTwo = async () => {
+    await page.locator("#editor").evaluate((node) => {
+      node.focus();
+      node.setSelectionRange(0, 2);
+      node.dispatchEvent(new Event("select", { bubbles: true }));
+    });
+  };
+  await selectTwo();
+  await page.locator('[data-quick="red"]').click();
+  await page.locator('[data-quick="large"]').click();
+  assert.equal(await state(page, "s.row().marks[0].color"), "#ff545f");
+  assert(await state(page, "s.row().marks[0].size > s.rowStyle(s.row()).size"));
+  assert.deepEqual(
+    await page
+      .locator("#editor")
+      .evaluate((node) => [node.selectionStart, node.selectionEnd]),
+    [0, 2],
+  );
+  await page.waitForFunction(() => !document.querySelector("#copy").disabled);
+  if (process.env.TELOP_SIDE_SCREENSHOT)
+    await page.screenshot({ path: process.env.TELOP_SIDE_SCREENSHOT });
+
+  await page
+    .locator("#editor")
+    .evaluate((node) => (window.__sameEditor = node));
+  await page.locator("#expandPreview").click();
+  assert(
+    await page
+      .locator("#editor")
+      .evaluate(
+        (node) =>
+          node === window.__sameEditor &&
+          Boolean(node.closest("#expandedPreviewDialog")),
+      ),
+  );
+  const before = await page
+    .locator("#shortStage canvas")
+    .evaluate((node) => node.toDataURL());
+  await page.locator("#editor").fill("拡大画面からも直接入力できる");
+  await page.waitForFunction(
+    (before) =>
+      document.querySelector("#shortStage canvas").toDataURL() !== before,
+    before,
+  );
+  await selectTwo();
+  await page.locator('[data-quick="blue"]').click();
+  assert.equal(await state(page, "s.row().marks[0].color"), "#70a5ff");
+  await page.locator("#editSelection").click();
+  await page.locator("#expandedPreviewDialog").waitFor({ state: "hidden" });
+  assert.equal(await page.locator("#scope").inputValue(), "selection");
+  assert(
+    await page
+      .locator("#scope")
+      .evaluate((node) => document.activeElement === node),
+  );
+  assert.equal(
+    await page.locator("#editor").inputValue(),
+    "拡大画面からも直接入力できる",
+  );
+  for (const [id, scope] of [
+    ["editRole", "role"],
+    ["editCard", "row"],
+  ]) {
+    await page.locator("#expandPreview").click();
+    await page.locator(`#${id}`).click();
+    await page.locator("#expandedPreviewDialog").waitFor({ state: "hidden" });
+    assert.equal(await page.locator("#scope").inputValue(), scope);
+    assert(
+      await page
+        .locator("#scope")
+        .evaluate((node) => document.activeElement === node),
+    );
+  }
+  await page.locator('[data-preview-mode="single"]').click();
+  assert(
+    (await bounds("editor")).y > (await bounds("preview")).y,
+    "single mode retains the stacked layout",
+  );
+  await page.locator('[data-preview-mode="short"]').click();
+  assert((await bounds("editor")).x > (await bounds("shortStage")).x);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  assert(
+    (await bounds("editor")).x > (await bounds("shortStage")).x,
+    "ordinary desktop also shows editing beside the portrait",
+  );
+  for (const width of [1280, 1024, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert(
+      (await bounds("editorColumn")).y > (await bounds("previewColumn")).y,
+      `narrow layout stacks at ${width}`,
+    );
+    assert(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      `no horizontal overflow at ${width}`,
+    );
+  }
 });
 
 (async () => {

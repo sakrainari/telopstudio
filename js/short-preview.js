@@ -96,6 +96,7 @@ export function initShortPreview() {
   function updateChrome() {
     expansion.sync(view.mode);
     const short = view.mode === "short";
+    $("editingWorkspace").classList.toggle("portrait-editing", short);
     $("preview").classList.toggle("short-mode", short);
     $("preview").classList.remove(...BACKGROUNDS);
     $("preview").classList.add(view.background);

@@ -15,8 +15,7 @@ export function initPreviewExpansion() {
     const targets = [
       [$("preview"), $("expandedPreviewMain")],
       [document.querySelector(".preview-controls"), $("expandedPreviewTools")],
-      [$("shortTools"), $("expandedPreviewTools")],
-      [document.querySelector(".export-actions"), $("expandedPreviewTools")],
+      [$("editorColumn"), $("expandedPreviewTools")],
     ];
     slots = targets.map(([node, host]) => {
       const anchor = document.createComment("expanded-preview-return");
@@ -29,12 +28,24 @@ export function initPreviewExpansion() {
     dialog.showModal();
   };
   $("closeExpandedPreview").onclick = () => dialog.close();
-  dialog.addEventListener("close", () => {
+  function restore(focusButton = true) {
+    if (!slots.length) return;
     for (const { node, anchor } of slots) anchor.replaceWith(node);
     slots = [];
     panel.scrollTop = scrollTop;
-    button.focus({ preventScroll: true });
-  });
+    if (focusButton) button.focus({ preventScroll: true });
+  }
+  dialog.addEventListener("close", () => restore());
+  dialog.addEventListener(
+    "click",
+    (event) => {
+      if (!event.target.closest("#editRole,#editCard,#editSelection")) return;
+      // Restore before the existing design handler focuses the right panel.
+      dialog.close();
+      restore(false);
+    },
+    true,
+  );
   return {
     sync(mode) {
       button.hidden = mode !== "short";
