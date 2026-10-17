@@ -4,9 +4,12 @@ import { tokens } from "./parser.js";
 export function fontString(style) {
   return `${weightOf(style.font)} ${style.size}px "${style.font}", sans-serif`;
 }
-export function loadFonts(text = "日本語テロップ") {
+export function loadFonts(
+  text = "日本語テロップ",
+  families = allFonts().map((item) => item.family),
+) {
   return Promise.allSettled(
-    allFonts().map(({ family: font }) =>
+    [...new Set(families)].map((font) =>
       document.fonts.load(
         fontString({ font, size: 40 }),
         text || "日本語テロップ",

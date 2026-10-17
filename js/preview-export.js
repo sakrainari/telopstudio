@@ -1,4 +1,6 @@
-import { FONTS, ROLES, clone } from "./presets.js";
+import { weightOf } from "./fonts.js";
+import { initShortPreview } from "./short-preview.js";
+import { ROLES, clone } from "./presets.js";
 import { loadFonts, render } from "./renderer.js";
 import { copyPNG, savePNG, filename, download, exportZIP } from "./exporter.js";
 import {
@@ -9,6 +11,7 @@ import {
   selectedRow,
   importLibrary,
   subscribe,
+  usedFonts,
 } from "./state.js";
 import { $, toast } from "./ui-common.js";
 let renderTimer,
@@ -17,6 +20,7 @@ let renderTimer,
   zipBusy = false,
   fontReady = false;
 const cache = new Map();
+let viewportPreview;
 function getCanvas(r) {
   const key = r.id;
   if (!cache.has(key)) cache.set(key, render(r, current().roles));
@@ -40,7 +44,7 @@ function scheduleRender() {
         ),
       ),
     ].join("");
-    await loadFonts(text);
+    await loadFonts(text, [...usedFonts()]);
     if (version !== renderVersion) return;
     fontReady = true;
     cache.clear();
@@ -57,6 +61,7 @@ function drawPreview() {
   $("png").disabled = !r;
 
   if (!r) {
+    viewportPreview.clear();
     $("dimensions").textContent = "—";
     const text = document.createElement("span");
     text.id = "emptyHint";
@@ -71,9 +76,10 @@ function drawPreview() {
     display.width = c.width;
     display.height = c.height;
     display.getContext("2d").drawImage(c, 0, 0);
-    $("preview").append(display);
+    viewportPreview.show(display);
     $("dimensions").textContent = `${c.width} × ${c.height} px`;
   } catch (e) {
+    viewportPreview.clear();
     $("dimensions").textContent = "描画エラー";
     const msg = document.createElement("p");
     msg.className = "error-text";
@@ -195,15 +201,7 @@ function chooseJSON(mode) {
   $("jsonFile").click();
 }
 export async function initPreviewExport() {
-  document.querySelectorAll("[data-bg]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        $("preview").className = "preview " + b.dataset.bg;
-        document
-          .querySelectorAll("[data-bg]")
-          .forEach((x) => x.classList.toggle("active", x === b));
-      }),
-  );
+  viewportPreview = initShortPreview();
 
   $("copy").onclick = () => copyRow(row(), $("copy"));
 
@@ -272,13 +270,13 @@ export async function initPreviewExport() {
       true,
     );
 
-  await loadFonts();
+  await loadFonts(undefined, [...usedFonts()]);
 
   if (
-    FONTS.some(
+    [...usedFonts()].some(
       (font) =>
         !document.fonts.check(
-          `${font === "Noto Sans JP" ? 900 : ["M PLUS Rounded 1c", "Shippori Mincho B1"].includes(font) ? 800 : 400} 40px "${font}"`,
+          `${weightOf(font)} 40px "${font}"`,
           "日本語テロップ",
         ),
     )

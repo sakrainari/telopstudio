@@ -13,6 +13,7 @@
 | js/design-panel.js | 編集対象、装飾設定、プリセット、装飾コピー・貼り付け |
 | js/color-palette.js | 共通の色選択ダイアログ、基本色・使用色・お気に入り、色履歴の保存 |
 | js/font-panel.js | フォント一覧、検索、追加・削除、全件適用の画面 |
+| js/short-preview.js | 9:16の確認フレーム、ドラッグ・倍率・ガイド、ブラウザごとのプレビュー設定 |
 | js/preview-export.js | 描画予約、画像キャッシュ、プレビュー・ギャラリー、画像とJSONの入出力の画面 |
 | js/ui-common.js | DOM補助、HTMLエスケープ、トースト、名前入力、共通ダイアログ、保存状態表示 |
 
@@ -65,3 +66,5 @@ Ver1.5の色履歴とお気に入りは `telop-studio-colors-v1` に独立保存
 rendererの `joinOutlines` がONの場合はdrawJoinedTextで文字マスクを共有し、外側フチ3→2→1→文字塗り→内側フチ3→2→1の順でテキスト全体を合成します。中央フチは内外に分けて配置します。影の設定が同じ文字は影用ソースをまとめ、グループごとに作成・解放して全体サイズのCanvasを同時に大量保持しないようにします。OFFは従来の文字単位描画を維持します。フチ結合はカード／役割単位で設定し、部分選択では変更できません。
 
 設定セクションの開閉状態はui-commonのinitPanelFolding／panelIsOpenが扱い、`telop-studio-panels-v1` に保存します。プロジェクトデータ・JSON・履歴とは独立したUI設定です。デザイン画面を再構築するときは現在のDOMの開閉状態を優先し、既に切り離されたdetailsのtoggleイベントは保存しません。
+
+Ver1.6: short-previewは表示用CanvasをCSSで配置し、rendererの出力・保存用Canvasを変更しません。設定は `telop-studio-preview-v1` に保存します。源ノ角ゴシックHeavyはassets/fontsから読み込み、CSS名Source Han Sans Heavy・weight 900で扱います。loadFontsは対象のフォント名を渡せるようにし、通常描画ではプロジェクトで使用するフォントだけを待機します。閉じたフォント一覧の見本は遅延表示し、不要な17MBの読み込みを避けます。

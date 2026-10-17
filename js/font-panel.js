@@ -41,11 +41,14 @@ function fontEntries() {
 export function fontOptions() {
   return fontEntries().map((f) => [
     f.family,
-    f.source === "missing" ? `${f.family}（未登録）` : f.family,
+    f.source === "missing" ? `${f.family}（未登録）` : f.label || f.family,
   ]);
 }
 
 function syncFonts() {
+  const samplesVisible = document.querySelector(
+    'details[data-panel-key="font"]',
+  ).open;
   const active = settingsStyle().font;
 
   const sample =
@@ -73,8 +76,8 @@ function syncFonts() {
       return (
         `<div class="font-item${f.family === active ? " active" : ""}${f.source === "missing" ? " missing" : ""}">` +
         `<button type="button" data-font="${escape(f.family)}" ${disabled ? "disabled" : ""} title="${escape(f.family)}">` +
-        `<span class="font-sample" style="font-family:'${escape(f.family)}',sans-serif;font-weight:${weightOf(f.family)}">${escape(sample)}</span>` +
-        `<span class="font-name">${escape(f.family)}${tag ? `<em>${tag}</em>` : ""}</span></button>` +
+        `<span class="font-sample" style="font-family:'${escape(samplesVisible ? f.family : "sans-serif")}',sans-serif;font-weight:${weightOf(f.family)}">${escape(sample)}</span>` +
+        `<span class="font-name">${escape(f.label || f.family)}${tag ? `<em>${tag}</em>` : ""}</span></button>` +
         (removable
           ? `<button type="button" class="font-remove" data-remove-font="${escape(f.family)}" title="一覧から外す">×</button>`
           : "") +
@@ -114,6 +117,11 @@ function renderSystemFonts() {
       .join("") || '<p class="hint">見つかりません。</p>';
 }
 export async function initFontPanel() {
+  document
+    .querySelector('details[data-panel-key="font"]')
+    .addEventListener("toggle", (event) => {
+      if (event.target.open) syncFonts();
+    });
   $("fontList").addEventListener("click", async (e) => {
     const rm = e.target.closest("[data-remove-font]");
 

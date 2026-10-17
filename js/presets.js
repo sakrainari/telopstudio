@@ -4,6 +4,7 @@ export const FONTS = [
   "RocknRoll One",
   "M PLUS Rounded 1c",
   "Shippori Mincho B1",
+  "Source Han Sans Heavy",
 ];
 export const ROLES = {
   A: "話者A",
@@ -315,15 +316,13 @@ export function validateLibrary(data) {
     };
   });
   const sets = Array.isArray(data.sets)
-    ? data.sets
-        .slice(0, 100)
-        .map((s) => ({
-          id: uid(),
-          name: String(s.name || "マイセット").slice(0, 80),
-          roles: Object.fromEntries(
-            Object.keys(ROLES).map((r) => [r, migrate(s.roles?.[r])]),
-          ),
-        }))
+    ? data.sets.slice(0, 100).map((s) => ({
+        id: uid(),
+        name: String(s.name || "マイセット").slice(0, 80),
+        roles: Object.fromEntries(
+          Object.keys(ROLES).map((r) => [r, migrate(s.roles?.[r])]),
+        ),
+      }))
     : [];
   const active = Math.max(
     0,

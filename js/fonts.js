@@ -1,6 +1,6 @@
 // =============================================================
 // fonts.js
-// フォント一覧の管理（最初から入っている5書体 ＋ 自分で追加したフォント）
+// フォント一覧の管理（最初から入っている6書体 ＋ 自分で追加したフォント）
 //
 // 追加の方法は2つ：
 //   1. フォントファイル（.ttf .otf .woff .woff2）を読み込む
@@ -12,6 +12,7 @@ import { FONTS } from './presets.js';
 
 const BUILTIN_WEIGHTS = {
   'Noto Sans JP': 900,
+  'Source Han Sans Heavy': 900,
   'M PLUS Rounded 1c': 800,
   'Shippori Mincho B1': 800,
 };
@@ -97,7 +98,7 @@ export async function initUserFonts() {
 /** 選べるフォントすべて（内蔵 → 追加の順） */
 export function allFonts() {
   return [
-    ...FONTS.map((family) => ({ family, source: 'builtin' })),
+    ...FONTS.map((family) => ({ family, source: 'builtin', label: family === 'Source Han Sans Heavy' ? '源ノ角ゴシック Heavy' : family })),
     ...userFonts.map((f) => ({ ...f })),
   ];
 }
