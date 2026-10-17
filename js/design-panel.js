@@ -1,10 +1,16 @@
 import {
+  colorControl,
+  initColorPalette,
+  closeColorPalette,
+} from "./color-palette.js";
+import {
   ROLES,
   SET_NAMES,
   defaults,
   designSet,
   clone,
   uid,
+  mergeStyle,
 } from "./presets.js";
 import { markRange } from "./parser.js";
 import {
@@ -52,6 +58,31 @@ function patchPath(path, value) {
   return root;
 }
 
+const SHADOW_DIRECTIONS = [
+  [225, "↖", "左上"],
+  [270, "↑", "上"],
+  [315, "↗", "右上"],
+  [180, "←", "左"],
+  [null, "•", ""],
+  [0, "→", "右"],
+  [135, "↙", "左下"],
+  [90, "↓", "下"],
+  [45, "↘", "右下"],
+];
+function shadowDirection(value) {
+  return `<div class="shadow-direction"><div class="direction-grid" role="group" aria-label="影の方向">${SHADOW_DIRECTIONS.map(([angle, arrow, label]) => (angle === null ? '<span aria-hidden="true">●</span>' : `<button type="button" data-shadow-angle="${angle}" title="${label}（${angle}°）" aria-label="影を${label}へ" aria-pressed="${Number(value) % 360 === angle}">${arrow}</button>`)).join("")}</div><div class="direction-number"><label for="setting-shadow-angle">角度 °</label><input id="setting-shadow-angle" data-path="shadow.angle" type="number" min="0" max="360" step="1" value="${value}"></div></div>`;
+}
+function syncShadowDirection(angle) {
+  $("settings")
+    .querySelectorAll("[data-shadow-angle]")
+    .forEach((button) =>
+      button.setAttribute(
+        "aria-pressed",
+        String(Number(angle) % 360 === Number(button.dataset.shadowAngle)),
+      ),
+    );
+}
+
 function field(path, label, type, opts = {}) {
   let value = readPath(settingsStyle(), path);
   if (value == null && path.startsWith("box.pad"))
@@ -65,17 +96,20 @@ function field(path, label, type, opts = {}) {
     input = `<select id="${id}" data-path="${path}">${opts.values.map(([k, v]) => option(k, v, value)).join("")}</select>`;
   else if (type === "checkbox")
     input = `<input id="${id}" data-path="${path}" type="checkbox" ${value ? "checked" : ""}>`;
+  else if (type === "color") input = colorControl(path, id, value);
+  else if (type === "direction") input = shadowDirection(value);
   else
     input = `<input id="${id}" data-path="${path}" type="${type}" value="${value}" ${opts.min !== undefined ? `min="${opts.min}" max="${opts.max}" step="${opts.step || 1}"` : ""}>${type === "range" ? `<output>${Number(Number(value).toFixed(2))}</output>` : ""}`;
 
-  return `<div class="field"><label for="${id}">${label}</label>${input}</div>`;
+  return `<div class="field"><label for="${type === "color" ? id + "-palette" : id}">${label}</label>${input}</div>`;
 }
 
 function group(title, content) {
-  return `<fieldset class="field-group"><legend>${title}</legend>${content}</fieldset>`;
+  return `<fieldset ${title === "座布団・配置" ? 'id="boxStyleSettings"' : ""} class="field-group"><legend>${title}</legend>${content}</fieldset>`;
 }
 
 function syncSettings() {
+  closeColorPalette();
   const partial = state.scope === "selection";
   $("scope").value = state.scope;
 
@@ -113,10 +147,21 @@ function syncSettings() {
       f("color2", "文字色 / 下", "color"),
   );
 
-  for (let i = 0; i < 3; i++)
+  html += group(
+    "フチの重ね方",
+    f("joinOutlines", "文字間のフチを結合", "checkbox") +
+      '<p class="hint">フチを層ごとにまとめ、重なった所の境目をなくします。離れている場合は字間を詰めるか、フチを太くしてください。</p>',
+  );
+  const edges = settingsStyle().edges;
+  for (let i = 0; i < edges.length; i++) {
+    if (i > 0 && !edges[i].on) continue;
     html += group(
       `フチ ${i + 1}`,
-      f(`edges.${i}.on`, "有効", "checkbox") +
+      f(
+        `edges.${i}.on`,
+        i === 0 ? "フチを表示" : "このフチを表示",
+        "checkbox",
+      ) +
         f(`edges.${i}.color`, "色", "color") +
         f(`edges.${i}.width`, "太さ px", "range", { min: 0, max: 24 }) +
         f(`edges.${i}.position`, "位置", "select", {
@@ -127,14 +172,17 @@ function syncSettings() {
           ],
         }),
     );
+  }
+  const nextEdge = edges.findIndex((edge, index) => index > 0 && !edge.on);
+  html += `<div class="edge-add"><button type="button" data-add-edge="${nextEdge}" ${nextEdge < 0 ? "disabled" : ""}>＋ フチを追加${nextEdge < 0 ? "（最大3層）" : ""}</button></div>`;
 
   const detailOpen = $("strokeDetails")?.open;
 
   html +=
     `<details id="strokeDetails" ${detailOpen ? "open" : ""}><summary>線の詳細設定</summary>` +
     group(
-      "ストロークスタイル",
-      f("lineJoin", "角の結合", "select", {
+      "フチの角の形",
+      f("lineJoin", "角の形", "select", {
         values: [
           ["round", "ラウンド"],
           ["miter", "マイター"],
@@ -142,14 +190,7 @@ function syncSettings() {
         ],
       }) +
         f("miterLimit", "角の比率", "range", { min: 1, max: 10, step: 0.1 }) +
-        f("lineCap", "線端", "select", {
-          values: [
-            ["butt", "バット"],
-            ["round", "丸型"],
-            ["square", "角型"],
-          ],
-        }) +
-        '<p class="hint">線端は閉じた文字の輪郭では通常、見た目が変わりません。角の比率はマイター結合時に使います。</p>',
+        '<p class="hint">角の比率は「マイター」を選んだときだけ調整できます。線端の設定は閉じた文字輪郭では見た目が変わらないため省いています。</p>',
     ) +
     "</details>";
 
@@ -158,7 +199,7 @@ function syncSettings() {
     f("shadow.on", "有効", "checkbox") +
       f("shadow.blur", "ぼかし", "range", { min: 0, max: 50 }) +
       f("shadow.distance", "距離 px", "range", { min: 0, max: 120 }) +
-      f("shadow.angle", "方向 °", "range", { min: 0, max: 360 }) +
+      f("shadow.angle", "影の方向", "direction") +
       f("shadow.opacity", "不透明度", "range", { min: 0, max: 1, step: 0.05 }) +
       f("shadow.color", "色", "color"),
   );
@@ -177,7 +218,6 @@ function syncSettings() {
           ["right", "右"],
         ],
       }) +
-        f("box.on", "座布団を表示", "checkbox") +
         f("box.mode", "背景の範囲", "select", {
           values: [
             ["all", "すべての行"],
@@ -259,6 +299,10 @@ function syncSettings() {
   }
 
   $("settings").innerHTML = html;
+  const style = settingsStyle(),
+    disabled = partial || (state.scope !== "role" && !row());
+  $("designQuickEffects").innerHTML =
+    `<div class="box-switch"><label for="setting-box-on"><input id="setting-box-on" type="checkbox" ${style.box.on ? "checked" : ""} ${disabled ? "disabled" : ""}> 座布団（文字の背景）</label><button type="button" id="showBoxSettings" ${disabled ? "disabled" : ""}>詳細 ↓</button></div>${partial ? '<p class="hint">座布団は話者共通・テロップ個別で設定します。</p>' : ""}`;
 
   $("settings")
     .querySelectorAll("fieldset")
@@ -267,6 +311,7 @@ function syncSettings() {
       const path = input?.dataset.path;
       const whole =
         path === "lineGap" ||
+        path === "joinOutlines" ||
         path === "align" ||
         path?.startsWith("box.") ||
         path?.startsWith("auto.") ||
@@ -281,6 +326,16 @@ function syncSettings() {
         (el.disabled =
           state.scope !== "role" && (!row() || (partial && !state.range))),
     );
+  const miterEnabled = settingsStyle().lineJoin === "miter";
+  $("setting-miterLimit").disabled ||= !miterEnabled;
+  $("setting-miterLimit")
+    .closest(".field")
+    .classList.toggle("inactive-setting", !miterEnabled);
+  $("setting-miterLimit").closest(".field").title = miterEnabled
+    ? "尖った角の伸びを制限します"
+    : "角の形をマイターにすると調整できます";
+  if (nextEdge < 0)
+    $("settings").querySelector("[data-add-edge]").disabled = true;
 }
 
 function applyPatch(patch, name, key) {
@@ -306,8 +361,52 @@ function syncStyleTransfer() {
   $("copyStyle").disabled = !row();
   $("pasteStyle").disabled = !styleClipboard;
 }
+function usedProjectColors() {
+  const colors = new Set();
+  function collect(style) {
+    if (style.fillOn !== false) {
+      colors.add(style.color);
+      if (style.gradient) colors.add(style.color2);
+    }
+    for (const edge of style.edges) if (edge.on) colors.add(edge.color);
+    if (style.shadow.on) colors.add(style.shadow.color);
+    if (style.box.on) {
+      colors.add(style.box.color);
+      if (style.box.border) colors.add(style.box.borderColor);
+    }
+    if (style.auto.on) colors.add(style.auto.color);
+  }
+  collect(settingsStyle());
+  for (const item of current().rows) {
+    const base = rowStyle(item);
+    collect(base);
+    for (const mark of item.marks) if (mark) collect(mergeStyle(base, mark));
+  }
+  return [...colors];
+}
+
 export function initDesignPanel(options) {
   fontOptions = options.fontOptions;
+  initColorPalette({
+    readUsedColors: usedProjectColors,
+    applyColor: (path, color) =>
+      applyPatch(
+        patchPath(path, color),
+        "色を変更",
+        `${current().id}:${state.scope}:${state.role}:${row()?.id}:${state.range?.start}:${path}`,
+      ),
+  });
+  $("designQuickEffects").addEventListener("change", (event) => {
+    if (event.target.id === "setting-box-on")
+      applyPatch({ box: { on: event.target.checked } }, "座布団を切り替え");
+  });
+  $("designQuickEffects").addEventListener("click", (event) => {
+    if (event.target.closest("#showBoxSettings"))
+      $("boxStyleSettings").scrollIntoView({
+        block: "start",
+        behavior: "smooth",
+      });
+  });
   $("scope").onchange = () => {
     state.scope = $("scope").value;
     if (state.scope !== "selection") state.returnScope = state.scope;
@@ -354,6 +453,9 @@ export function initDesignPanel(options) {
       title,
       `${current().id}:${state.scope}:${state.role}:${row()?.id}:${state.range?.start}:${path}`,
     );
+    if (path === "lineJoin") notify("design");
+    if (path === "shadow.angle") syncShadowDirection(value);
+    if (/^edges\.[12]\.on$/.test(path)) notify("design");
   });
 
   $("settings").addEventListener("change", (e) => {
@@ -365,6 +467,28 @@ export function initDesignPanel(options) {
   });
 
   $("settings").addEventListener("click", (e) => {
+    const direction = e.target.closest("[data-shadow-angle]");
+    if (direction) {
+      const angle = Number(direction.dataset.shadowAngle);
+      applyPatch({ shadow: { angle } }, "影の方向を変更");
+      $("setting-shadow-angle").value = angle;
+      syncShadowDirection(angle);
+      return;
+    }
+    const addEdge = e.target.closest("[data-add-edge]");
+    if (addEdge) {
+      const index = Number(addEdge.dataset.addEdge);
+      if (index < 1 || index > 2) return;
+      const edges = [];
+      edges[index] = {
+        on: true,
+        width: settingsStyle().edges[index].width || 6,
+      };
+      applyPatch({ edges }, "フチを追加");
+      notify("design");
+      return;
+    }
+
     const reset = e.target.closest("[data-reset-path]");
     if (reset) {
       applyPatch(

@@ -49,13 +49,17 @@ function syncCards() {
 }
 
 function captureSelection(el) {
+  const previousRange = state.range;
   const range = selectionRange(el.value, el.selectionStart, el.selectionEnd);
   state.range = range.end > range.start ? range : null;
 
   const wasPartial = state.scope === "selection";
   if (!state.range && wasPartial) state.scope = state.returnScope;
   syncSelectionTools();
-  if (wasPartial) notify("design");
+  const changed =
+    previousRange?.start !== state.range?.start ||
+    previousRange?.end !== state.range?.end;
+  if (wasPartial && (changed || !state.range)) notify("design");
   saveSoon();
 }
 
