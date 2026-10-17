@@ -367,6 +367,149 @@ test("8: render jobs cancel on project change and role/mark changes invalidate t
   assert.equal(await page.locator("#gallery .thumb").count(), 3);
 });
 
+test("9: all sample sets restore v1.4 appearance without changing new-project defaults", async (page) => {
+  const differences = await page.evaluate(async () => {
+    const { defaults, designSet, SET_NAMES } = await import(
+      new URL("./js/presets.js", document.baseURI).href
+    );
+    const { parseBlock } = await import(
+      new URL("./js/parser.js", document.baseURI).href
+    );
+    const { render, loadFonts } = await import(
+      new URL("./js/renderer.js", document.baseURI).href
+    );
+    const expected = await (
+      await fetch(
+        new URL("./tests/fixtures/design-sets-v1.4.json", document.baseURI),
+      )
+    ).json();
+    const sample = "サンプルのテロップ";
+    await loadFonts(sample, [
+      ...new Set(
+        Object.values(expected).flatMap((roles) =>
+          Object.values(roles).map((s) => s.font),
+        ),
+      ),
+    ]);
+    const differences = [];
+    for (const key of Object.keys(SET_NAMES))
+      for (const role of Object.keys(expected[key])) {
+        const row = parseBlock(sample);
+        row.role = role;
+        if (
+          render(row, designSet(key)).toDataURL() !==
+          render(row, expected[key]).toDataURL()
+        )
+          differences.push(`${key}/${role}`);
+      }
+    const counts = Object.values(defaults()).map(
+      (s) => s.edges.filter((e) => e.on).length,
+    );
+    return { differences, counts };
+  });
+  assert.deepEqual(differences.counts, [1, 1, 1, 0, 1]);
+  assert.deepEqual(
+    differences.differences,
+    [],
+    "sample pixels differ from v1.4",
+  );
+  await page.locator("#editorRole").selectOption("A");
+  await page.locator("#editor").fill("サンプルのテロップ");
+  await page.locator(".sample-panel > summary").click();
+  await page.locator("#keepFont").uncheck();
+  for (const key of ["standard", "explain", "gaming", "serious", "mystery"]) {
+    const expected = await page.evaluate(async (key) => {
+      const { render } = await import(
+        new URL("./js/renderer.js", document.baseURI).href
+      );
+      const s = await import(new URL("./js/state.js", document.baseURI).href);
+      const sets = await (
+        await fetch(
+          new URL("./tests/fixtures/design-sets-v1.4.json", document.baseURI),
+        )
+      ).json();
+      return render({ ...s.row(), override: {} }, sets[key]).toDataURL();
+    }, key);
+    await page.locator("#designSet").selectOption(key);
+    await page.locator("#applySet").click();
+    await page.waitForFunction(
+      (expected) =>
+        document.querySelector("#preview canvas")?.toDataURL() === expected,
+      expected,
+      { timeout: 5000 },
+    );
+  }
+});
+
+test("10: large JSON asks before reading and can still be intentionally restored", async (page) => {
+  const payload = await page.evaluate(async () => {
+    const s = await import(new URL("./js/state.js", document.baseURI).href);
+    return JSON.stringify({
+      version: 2,
+      projects: [s.current()],
+      sets: [],
+      active: s.current().id,
+    });
+  });
+  const choose = (size) =>
+    page.evaluate(
+      ({ size, payload }) => {
+        const input = document.querySelector("#jsonFile");
+        const transfer = new DataTransfer();
+        transfer.items.add(
+          new File([payload], "backup.json", { type: "application/json" }),
+        );
+        input.files = transfer.files;
+        const file = input.files[0],
+          read = file.text.bind(file);
+        window.__testJSONReads = 0;
+        Object.defineProperty(file, "size", { value: size });
+        Object.defineProperty(file, "text", {
+          value: () => {
+            window.__testJSONReads++;
+            return read();
+          },
+        });
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      },
+      { size, payload },
+    );
+  let prompts = 0;
+  const cancel = async (dialog) => {
+    prompts++;
+    assert.match(dialog.message(), /JSON/);
+    await dialog.dismiss();
+  };
+  page.on("dialog", cancel);
+  await choose(201 * 1024 * 1024);
+  assert.equal(prompts, 1);
+  assert.equal(await page.evaluate(() => window.__testJSONReads), 0);
+  assert.equal(await state(page, "s.library.projects.length"), 1);
+  page.off("dialog", cancel);
+  const accept = async (dialog) => {
+    prompts++;
+    await dialog.accept();
+  };
+  page.on("dialog", accept);
+  await choose(200 * 1024 * 1024);
+  await page.waitForFunction(
+    async () =>
+      (await import(new URL("./js/state.js", document.baseURI).href)).library
+        .projects.length === 2,
+  );
+  assert.equal(prompts, 1, "200 MiB is below the confirmation threshold");
+  assert.equal(await page.evaluate(() => window.__testJSONReads), 1);
+  await choose(201 * 1024 * 1024);
+  await page.waitForFunction(
+    async () =>
+      (await import(new URL("./js/state.js", document.baseURI).href)).library
+        .projects.length === 3,
+  );
+  assert.equal(prompts, 2);
+  assert.equal(await page.evaluate(() => window.__testJSONReads), 1);
+  page.off("dialog", accept);
+});
+
 (async () => {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch({

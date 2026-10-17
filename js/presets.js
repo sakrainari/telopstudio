@@ -120,6 +120,10 @@ export const SET_NAMES = {
 };
 export function designSet(key) {
   const roles = defaults();
+  // Samples are complete authored designs. Their outlines must not inherit
+  // the one-outline starting point used for a new project since v1.5.
+  for (const role of ["A", "B", "!"]) roles[role].edges[1].on = true;
+  roles["!"].edges[2].on = true;
   if (key === "standard") return roles;
   for (const [r, s] of Object.entries(roles)) {
     if (key === "explain") {

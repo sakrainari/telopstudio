@@ -14,6 +14,7 @@ import {
   usedFonts,
 } from "./state.js";
 import { $, toast } from "./ui-common.js";
+const LARGE_JSON_BYTES = 200 * 1024 * 1024;
 let renderTimer,
   galleryTimer,
   renderVersion = 0,
@@ -303,6 +304,13 @@ export async function initPreviewExport() {
   $("jsonFile").onchange = async () => {
     const file = $("jsonFile").files[0];
     if (!file) return;
+    if (
+      file.size > LARGE_JSON_BYTES &&
+      !confirm(
+        `サイズの大きいJSON（約${Math.round(file.size / 1024 / 1024)}MB）です。読み込みに時間がかかり、タブが応答しなくなることがあります。読み込みますか？`,
+      )
+    )
+      return;
     try {
       importLibrary(JSON.parse(await file.text()), importMode);
       toast("JSONを読み込みました。既存のプロジェクトは保持されています。");
