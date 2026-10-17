@@ -14,6 +14,7 @@
 | js/color-palette.js | 共通の色選択ダイアログ、基本色・使用色・お気に入り、色履歴の保存 |
 | js/font-panel.js | フォント一覧、検索、追加・削除、全件適用の画面 |
 | js/short-preview.js | 9:16の確認フレーム、ドラッグ・倍率・ガイド、ブラウザごとのプレビュー設定 |
+| js/preview-reference.js | 実画面画像の読み込み・ブラウザ保存、表示濃度・合わせ方、余白ガイドの調整。出力Canvasには描かない |
 | js/preview-export.js | 描画予約、画像キャッシュ、プレビュー・ギャラリー、画像とJSONの入出力の画面 |
 | js/ui-common.js | DOM補助、HTMLエスケープ、トースト、名前入力、共通ダイアログ、保存状態表示 |
 
@@ -84,3 +85,9 @@ parserはIntl.Segmenterで見た目の1文字を分割し、tokensはcharと保�
 defaultsは新規作成の1層を維持し、designSetは旧サンプルのA・Bのフチ2と、タイトルのフチ2・3を有効にしてからセットごとの配色を適用します。シリアスでフチ2を外す指定、ナレーションと注釈のフチ指定は従来どおりです。保存済みプロジェクトやマイセットを移行・変更せず、次にサンプルを当てたときに反映します。tests/fixturesの固定データを基準に、25通りの描画一致と画面からの適用を検証します。
 
 JSONは200MiB超のファイルをfile.text()で読む前に確認します。キャンセル時はファイルも状態も読み込みません。意図した大きなバックアップは続行できるため、出力と読み戻しの容量不整合を再導入しません。
+
+## Ver1.7の実画面プレビュー
+
+preview-referenceは参考画像をblob URLのimgとして表示する。画像Blobはtelop-studio-referenceデータベースのimages/currentへ保存し、表示・濃度・合わせ方・ガイドはLocalStorageのtelop-studio-reference-v1へ保存する。プロジェクト保存と履歴は変更しない。IndexedDB書き込みを直列化し、画像の置換・削除と初期復元は世代で競合を防ぐ。無効画像で現在の画像を消さず、古いblob URLを解放する。
+
+short-previewは表示用フレームを作るたびにreference.updateを呼ぶ。参考画像はCanvasの背面、ガイドは前面にDOMで置き、renderer・exporterのCanvasへ合成しない。初回のモードはshortとし、singleを含む保存済みモードは尊重する。ガイドは共通の調整可能な目安であり、各アプリのUI範囲を保証する固定仕様ではない。

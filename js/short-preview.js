@@ -1,4 +1,5 @@
 import { $ } from "./ui-common.js";
+import { initPreviewReference } from "./preview-reference.js";
 
 const STORAGE_KEY = "telop-studio-preview-v1";
 const BACKGROUNDS = ["checker", "black", "scene"];
@@ -11,7 +12,7 @@ const finite = (value, fallback, low, high) =>
 // Placement is a viewing preference. It never changes the exported bitmap.
 export function initShortPreview() {
   const view = {
-    mode: "single",
+    mode: "short",
     background: "checker",
     guides: true,
     scale: 100,
@@ -23,7 +24,7 @@ export function initShortPreview() {
     drag = null;
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    if (saved?.mode === "short") view.mode = "short";
+    if (["single", "short"].includes(saved?.mode)) view.mode = saved.mode;
     if (BACKGROUNDS.includes(saved?.background))
       view.background = saved.background;
     if (typeof saved?.guides === "boolean") view.guides = saved.guides;
@@ -37,6 +38,14 @@ export function initShortPreview() {
   } catch {
     /* The preview also works without preference storage. */
   }
+  const reference = initPreviewReference({
+    onChange: () => updatePlacement(),
+    onChoose: () => {
+      view.mode = "short";
+      mount();
+      persist();
+    },
+  });
 
   function persist() {
     try {
@@ -64,6 +73,7 @@ export function initShortPreview() {
     $("shortScaleValue").value = `${Math.round(view.scale)}%`;
     $("shortGuides").checked = view.guides;
     const stage = $("shortStage");
+    reference.update(stage, stage?.querySelector(".short-guide"));
     if (!caption || !stage) return;
     stage.classList.toggle("show-guides", view.guides);
     const width = ((caption.width * view.scale) / 100 / 1080) * 100;

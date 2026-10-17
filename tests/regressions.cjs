@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
+const { createHash } = require("node:crypto");
 const { chromium } = require(process.env.TELOP_PLAYWRIGHT_PATH || "playwright");
 const root = path.resolve(__dirname, "..");
 const mime = {
@@ -508,6 +509,167 @@ test("10: large JSON asks before reading and can still be intentionally restored
   assert.equal(prompts, 2);
   assert.equal(await page.evaluate(() => window.__testJSONReads), 1);
   page.off("dialog", accept);
+});
+
+test("11: real-screen references and guides persist without entering PNG or project data", async (page) => {
+  assert.equal(
+    await page
+      .locator('[data-preview-mode="short"]')
+      .getAttribute("aria-pressed"),
+    "true",
+  );
+  const original = await page
+    .locator("#preview canvas")
+    .evaluate((canvas) => canvas.toDataURL());
+  const baselineDownload = page.waitForEvent("download");
+  await page.locator("#png").click();
+  const baselinePNG = fs.readFileSync(await (await baselineDownload).path());
+  const project = await state(page, "JSON.stringify(s.current())");
+  const data = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#20415c";
+    ctx.fillRect(0, 0, 1080, 1920);
+    ctx.fillStyle = "#a42d45";
+    ctx.fillRect(920, 300, 160, 1200);
+    ctx.fillRect(0, 1550, 1080, 370);
+    ctx.fillStyle = "#fff";
+    ctx.font = "50px sans-serif";
+    ctx.fillText("REFERENCE TEST", 80, 160);
+    return canvas.toDataURL();
+  });
+  await page.locator(".reference-tools > summary").first().click();
+  await page.locator("#referenceFile").setInputFiles({
+    name: "reference-screen.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(data.split(",")[1], "base64"),
+  });
+  await page.waitForFunction(
+    () => document.querySelector(".reference-image")?.naturalWidth === 1080,
+  );
+  assert.match(
+    await page.locator("#referenceName").innerText(),
+    /reference-screen.png/,
+  );
+  assert.equal(
+    await page
+      .locator(".reference-image")
+      .evaluate((image) => image.style.objectFit),
+    "contain",
+  );
+  await page.locator("#referenceFit").selectOption("cover");
+  await page.locator("#referenceOpacity").fill("40");
+  assert.equal(
+    await page
+      .locator(".reference-image")
+      .evaluate((image) => image.style.opacity),
+    "0.4",
+  );
+  await page.locator(".reference-tools > summary").nth(1).click();
+  await page.locator("#guide-top").fill("20");
+  await page.locator("#guide-right").fill("25");
+  assert.equal(
+    await page
+      .locator(".short-guide")
+      .evaluate((el) => el.style.getPropertyValue("--guide-top")),
+    "20%",
+  );
+  assert.equal(
+    await page
+      .locator("#preview canvas")
+      .evaluate((canvas) => canvas.toDataURL()),
+    original,
+  );
+  assert.equal(await state(page, "JSON.stringify(s.current())"), project);
+  const downloaded = page.waitForEvent("download");
+  await page.locator("#png").click();
+  const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+  assert.equal(
+    hash(fs.readFileSync(await (await downloaded).path())),
+    hash(baselinePNG),
+    "reference does not alter the source PNG",
+  );
+  await page.waitForFunction(
+    () =>
+      new Promise((resolve) => {
+        const request = indexedDB.open("telop-studio-reference", 1);
+        request.onsuccess = () => {
+          const db = request.result;
+          const tx = db.transaction("images");
+          const read = tx.objectStore("images").get("current");
+          tx.oncomplete = () => {
+            db.close();
+            resolve(Boolean(read.result?.blob));
+          };
+        };
+      }),
+  );
+  if (process.env.TELOP_REFERENCE_SCREENSHOT)
+    await page
+      .locator("#shortStage")
+      .screenshot({ path: process.env.TELOP_REFERENCE_SCREENSHOT });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForFunction(
+    () => document.querySelector(".reference-image")?.naturalWidth === 1080,
+  );
+  assert.equal(
+    await page
+      .locator(".reference-image")
+      .evaluate((image) => image.style.opacity),
+    "0.4",
+  );
+  assert.equal(await page.locator("#guide-top").inputValue(), "20");
+  await page.locator(".reference-tools > summary").first().click();
+  await page.locator("#referenceVisible").uncheck();
+  assert.equal(await page.locator(".reference-image").count(), 0);
+  await page.locator("#referenceVisible").check();
+  await page.locator("#editor").fill("変更後も画面画像は残る");
+  await page.waitForFunction(() =>
+    document.querySelector("#dimensions").textContent.includes("px"),
+  );
+  assert.equal(await page.locator(".reference-image").count(), 1);
+  await page.locator("#referenceFile").setInputFiles({
+    name: "broken.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("not an image"),
+  });
+  await page.waitForFunction(() =>
+    document.querySelector("#toast").textContent.includes("読み込めません"),
+  );
+  assert.match(
+    await page.locator("#referenceName").innerText(),
+    /reference-screen.png/,
+  );
+  for (const width of [1024, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    assert(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      `reference layout ${width}`,
+    );
+  }
+  await page.locator("#referenceRemove").click();
+  await page.waitForFunction(
+    () =>
+      new Promise((resolve) => {
+        const request = indexedDB.open("telop-studio-reference", 1);
+        request.onsuccess = () => {
+          const db = request.result;
+          const tx = db.transaction("images");
+          const read = tx.objectStore("images").get("current");
+          tx.oncomplete = () => {
+            db.close();
+            resolve(!read.result);
+          };
+        };
+      }),
+  );
+  await page.reload({ waitUntil: "networkidle" });
+  assert.equal(await page.locator(".reference-image").count(), 0);
+  assert(await page.locator("#referenceRemove").isDisabled());
 });
 
 (async () => {
