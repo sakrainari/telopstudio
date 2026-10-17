@@ -779,7 +779,14 @@ test("12: portrait preview grows vertically and expands without duplicating or c
   assert.equal(await page.locator(".reference-image").count(), 1);
   for (const width of [1024, 1280, 1440, 1920]) {
     await page.setViewportSize({ width, height: 900 });
+    await page
+      .locator(".center-panel")
+      .evaluate((panel) => (panel.scrollTop = 0));
     const normal = await stage();
+    assert(
+      normal.y + normal.height <= 900,
+      `normal frame fits vertically at ${width}`,
+    );
     assert(
       Math.abs(normal.width / normal.height - 9 / 16) < 0.005,
       `normal aspect at ${width}`,
