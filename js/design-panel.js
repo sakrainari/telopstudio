@@ -119,6 +119,14 @@ function section(title, content, key, initialOpen = false, status = "") {
   return `<details class="settings-section" data-panel-key="${key}" ${panelIsOpen(key, initialOpen) ? "open" : ""}><summary><span>${title}</span>${status ? `<span class="section-status">${status}</span>` : ""}</summary>${content}</details>`;
 }
 
+function textColorFields() {
+  const gradient = settingsStyle().gradient;
+  return (
+    field("color", gradient ? "上の色" : "文字色", "color") +
+    (gradient ? field("color2", "下の色", "color") : "")
+  );
+}
+
 function syncSettings() {
   closeColorPalette();
   const partial = state.scope === "selection";
@@ -156,8 +164,7 @@ function syncSettings() {
         f("letterSpacing", "字間 px", "metric", { min: -100, max: 200 }) +
         f("fillOn", "塗りを表示", "checkbox") +
         f("gradient", "グラデーション", "checkbox") +
-        f("color", "文字色 / 上", "color") +
-        f("color2", "文字色 / 下", "color"),
+        `<div id="textColorFields">${textColorFields()}</div>`,
     ),
     "text",
     true,
@@ -494,6 +501,7 @@ export function initDesignPanel(options) {
         `[data-panel-key="${sectionKey}"] > summary .section-status`,
       ).textContent = value ? "ON" : "OFF";
     if (path === "lineJoin") notify("design");
+    if (path === "gradient") $("textColorFields").innerHTML = textColorFields();
     if (path === "shadow.angle") syncShadowDirection(value);
     if (/^edges\.[12]\.on$/.test(path)) notify("design");
   });

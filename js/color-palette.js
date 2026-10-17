@@ -63,7 +63,7 @@ function persistColors() {
 
 export function colorControl(path, id, value) {
   const color = normalize(value) || "#ffffff";
-  return `<div class="color-control"><input id="${id}" data-path="${path}" type="color" value="${color}" hidden tabindex="-1" aria-hidden="true"><button id="${id}-palette" type="button" data-palette-open="${path}" data-color-id="${id}" aria-haspopup="dialog" aria-label="色を選ぶ ${color}"><span class="color-chip" style="background:${color}"></span><span class="color-code">${color.toUpperCase()}</span></button></div>`;
+  return `<div class="color-control"><input id="${id}" data-path="${path}" type="color" value="${color}" hidden tabindex="-1" aria-hidden="true"><button id="${id}-palette" type="button" data-palette-open="${path}" data-color-id="${id}" aria-haspopup="dialog" aria-label="色を変更 ${color}" title="パレットを開いて色を変更"><span class="color-chip" style="background:${color}"></span><span class="color-code">${color.toUpperCase()}</span><span class="color-action">変更</span></button></div>`;
 }
 
 function swatches(colors, emptyText) {
@@ -114,7 +114,7 @@ function chooseColor(value, remember = true) {
   if (button) {
     button.querySelector(".color-chip").style.background = color;
     button.querySelector(".color-code").textContent = color.toUpperCase();
-    button.setAttribute("aria-label", "色を選ぶ " + color);
+    button.setAttribute("aria-label", "色を変更 " + color);
   }
   if (remember) {
     recent = [color, ...recent.filter((item) => item !== color)].slice(0, 18);
