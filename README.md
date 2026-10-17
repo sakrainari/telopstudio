@@ -6,6 +6,7 @@
 
 [使い方](https://sakrainari.github.io/telopstudio/manual.html) / [仕様書](https://sakrainari.github.io/telopstudio/specification.html)
 
+- `ARCHITECTURE.md`：JavaScriptの役割分担と変更通知の契約
 - `specification.html`：確定仕様書
 - `manual.html`：完成版の使い方・検証範囲
 - `index.html`：アプリ本体（HTTP/HTTPSで開く）
