@@ -10,7 +10,8 @@ const finite = (value, fallback, low, high) =>
     ? clamp(value, low, high)
     : fallback;
 
-// Placement is a viewing preference. It never changes the exported bitmap.
+// Placement is a viewing preference. Exports retain the original bitmap;
+// dimensions that exceed the short-video frame are explained near export.
 export function initShortPreview() {
   const view = {
     mode: "short",
@@ -96,6 +97,13 @@ export function initShortPreview() {
   function updateChrome() {
     expansion.sync(view.mode);
     const short = view.mode === "short";
+    const warning = $("exportSizeWarning");
+    const oversized =
+      caption && (caption.width > 1080 || caption.height > 1920);
+    warning.hidden = !oversized;
+    warning.textContent = oversized
+      ? `PNGは原寸 ${caption.width} × ${caption.height}px で保存します。1080 × 1920を超えるため、編集ソフトで縮小するか、改行・文字サイズを調整してください。プレビューの倍率は保存サイズに反映しません。`
+      : "";
     $("editingWorkspace").classList.toggle("portrait-editing", short);
     $("preview").classList.toggle("short-mode", short);
     $("preview").classList.remove(...BACKGROUNDS);

@@ -11,6 +11,7 @@ const mime = {
   ".js": "text/javascript",
   ".css": "text/css",
   ".otf": "font/otf",
+  ".woff2": "font/woff2",
 };
 const server = http.createServer((req, res) => {
   const file = path.resolve(
@@ -964,6 +965,136 @@ test("13: portrait and one live editor share space, including the expanded dialo
     assert(
       (await bounds("editorColumn")).y > (await bounds("previewColumn")).y,
       `narrow layout stacks at ${width}`,
+    );
+    assert(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      `no horizontal overflow at ${width}`,
+    );
+  }
+});
+
+test("14: oversized original PNG is explained even when the portrait preview fits", async (page) => {
+  await page.waitForFunction(() => !document.querySelector("#copy").disabled);
+  const source = await page
+    .locator("#preview canvas")
+    .evaluate((node) => ({ width: node.width, height: node.height }));
+  assert(source.width > 1080, "fixture exceeds short-video width");
+  const download = page.waitForEvent("download");
+  await page.locator("#png").click();
+  const png = fs.readFileSync(await (await download).path());
+  assert.equal(
+    png.readUInt32BE(16),
+    source.width,
+    "existing original export is preserved",
+  );
+  assert.equal(
+    await page.locator("#exportSizeWarning").count(),
+    1,
+    "original-size warning exists",
+  );
+  assert(await page.locator("#exportSizeWarning").isVisible());
+  assert.match(
+    await page.locator("#exportSizeWarning").innerText(),
+    /1080|原寸/,
+  );
+  assert.match(
+    await page.locator("#exportSizeWarning").innerText(),
+    new RegExp(String(source.width)),
+  );
+  await page.locator("#shortScale").fill("50");
+  assert(
+    await page.locator("#exportSizeWarning").isVisible(),
+    "display scaling cannot hide the warning",
+  );
+  await page.locator('[data-preview-mode="single"]').click();
+  assert(
+    await page.locator("#exportSizeWarning").isVisible(),
+    "single mode also explains the output",
+  );
+  await page.locator("#editor").fill("短い文");
+  await page.waitForFunction(() => !document.querySelector("#copy").disabled);
+  assert(await page.locator("#exportSizeWarning").isHidden());
+  await page.locator("#editor").fill(Array(20).fill("あ").join("\n"));
+  await page.waitForFunction(() => !document.querySelector("#copy").disabled);
+  assert(await page.locator("#exportSizeWarning").isVisible());
+  assert.match(await page.locator("#exportSizeWarning").innerText(), /1920/);
+});
+
+test("15: ZIP export works with every external request blocked", async (page) => {
+  const origin = new URL(page.url()).origin;
+  await page.route("**/*", (route) =>
+    new URL(route.request().url()).origin === origin
+      ? route.continue()
+      : route.abort(),
+  );
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForFunction(() => !document.querySelector("#copy").disabled);
+  assert.equal(
+    await page.evaluate(() => typeof window.JSZip),
+    "function",
+    "ZIP dependency is available offline",
+  );
+  const download = page.waitForEvent("download");
+  await page.locator("#zip").click();
+  const bytes = fs.readFileSync(await (await download).path());
+  const entries = await page.evaluate(async (bytes) => {
+    const zip = await window.JSZip.loadAsync(new Uint8Array(bytes));
+    return Promise.all(
+      Object.values(zip.files)
+        .filter((entry) => !entry.dir)
+        .map(async (entry) => {
+          const data = await entry.async("uint8array");
+          return { name: entry.name, signature: Array.from(data.slice(0, 8)) };
+        }),
+    );
+  }, Array.from(bytes));
+  assert.equal(entries.length, 5);
+  for (const entry of entries) {
+    assert.match(entry.name, /^\d{3}_.*\.png$/);
+    assert.deepEqual(entry.signature, [137, 80, 78, 71, 13, 10, 26, 10]);
+  }
+});
+
+test("16: Source Han Heavy loads lazily from a compact WOFF2", async (page) => {
+  const file = path.join(root, "assets/fonts/SourceHanSans-Heavy.woff2");
+  assert(fs.existsSync(file), "compressed font is bundled");
+  assert(
+    fs.statSync(file).size < 17644704 * 0.8,
+    "font saves at least 20% against the original OTF",
+  );
+  const requests = [];
+  page.on("request", (request) => {
+    if (/SourceHanSans-Heavy/.test(request.url())) requests.push(request.url());
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  assert.equal(
+    requests.length,
+    0,
+    "unused bundled font does not load at startup",
+  );
+  await page.locator("#setting-font").selectOption("Source Han Sans Heavy");
+  await page.waitForFunction(() => !document.querySelector("#copy").disabled);
+  assert(requests.some((url) => url.includes("SourceHanSans-Heavy.woff2")));
+  assert(!requests.some((url) => url.includes(".otf")));
+  assert(
+    await page.evaluate(() =>
+      document.fonts.check(
+        '900 40px "Source Han Sans Heavy"',
+        "源ノ角ゴシック",
+      ),
+    ),
+  );
+});
+
+test("17: project selector remains readable on narrow windows", async (page) => {
+  for (const width of [740, 600, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const field = await page.locator("#projects").boundingBox();
+    assert(
+      field.width >= 170,
+      `project name has room at ${width}: ${field.width}px`,
     );
     assert(
       await page.evaluate(

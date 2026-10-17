@@ -46,7 +46,7 @@
 /* Portrait composition preview; exports continue to use the cropped source canvas. */
 .preview-format{margin:0 0 10px;display:flex}.preview.short-mode{height:min(52vh,500px);min-height:340px;max-height:none;padding:12px;background:#10121a;background-image:none}.short-stage{height:100%;aspect-ratio:9/16;width:auto;max-width:100%;position:relative;overflow:hidden;border:1px solid #68617c;border-radius:6px;box-shadow:0 8px 28px #0006;flex-shrink:0}.preview.short-mode .short-stage canvas.short-caption{position:absolute;max-width:none;max-height:none;height:auto;transform:translate(-50%,-50%);cursor:grab;touch-action:none;user-select:none}.preview.short-mode .short-stage canvas.short-caption:active{cursor:grabbing}.short-caption:focus-visible{outline:2px solid var(--mint)}.short-guide{display:none;position:absolute;inset:8% 12% 18% 6%;border:1px dashed #d4c9ff99;pointer-events:none}.show-guides .short-guide{display:block}.short-guide>span{position:absolute;left:4px;top:4px;font-size:8px;color:#e4ddff;background:#11182099;padding:3px;border-radius:3px}.short-tools{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:8px;background:#1e202c}.short-tools[hidden]{display:none}.short-tool-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;font-size:11px}.short-tool-row input[type=range]{flex:1;min-width:70px;width:100px;max-width:210px}.short-tool-row output{min-width:38px;color:var(--accent);font-variant-numeric:tabular-nums}.short-tool-row button{padding:5px 9px;font-size:11px}.short-tool-row .check{margin-left:auto}#shortPosition{color:var(--muted);font-size:10px}#shortTools .hint{margin:0}.short-overflow{color:#ffd797;font-size:11px;margin:8px 0}@media(max-width:600px){.preview.short-mode{height:440px;min-height:340px}.short-tool-row .check{margin-left:0}}
 
-@font-face{font-family:"Source Han Sans Heavy";src:url("assets/fonts/SourceHanSans-Heavy.otf") format("opentype");font-style:normal;font-weight:900;font-display:swap}
+@font-face{font-family:"Source Han Sans Heavy";src:url("assets/fonts/SourceHanSans-Heavy.woff2") format("woff2");font-style:normal;font-weight:900;font-display:swap}
 /* Real-screen references remain separate from the exported Canvas. */
 .short-stage .reference-image{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-position:center;pointer-events:none;user-select:none;z-index:0}.short-stage canvas.short-caption{z-index:1}.short-guide{z-index:2;inset:var(--guide-top,8%) var(--guide-right,12%) var(--guide-bottom,18%) var(--guide-left,6%)}.short-stage.has-reference .short-guide{box-shadow:0 0 0 2000px #a82f3830}.reference-tools{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}.reference-tools>summary{margin-bottom:8px;color:var(--accent)}.reference-tools .hint{overflow-wrap:anywhere;margin:8px 0!important}#referenceFit{max-width:100%;font-size:11px}.guide-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px}.guide-fields>label{font-size:11px;color:var(--muted)}.guide-fields input{display:block;width:100%;min-width:0;margin-top:5px}#guideReset{padding:5px 9px;font-size:11px}@media(max-width:1250px){.guide-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 /* Give the portrait frame the available screen height, preserving 9:16 even
@@ -181,4 +181,21 @@
   .portrait-editing > .editor-column .quickbar button {
     padding: 5px 6px;
   }
+}
+
+/* Original export dimensions are independent of portrait display scaling. */
+.export-size-warning {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid #806b3b;
+  border-radius: 8px;
+  background: #332b1e;
+  color: #ffdc91;
+  font-size: 11px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 800px) {
+  .project-tools {flex-basis: 100%; flex-wrap: wrap;}
+  #projects {flex: 1; width: 200px; min-width: 170px; max-width: none;}
 }
