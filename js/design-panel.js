@@ -12,7 +12,7 @@ import {
   uid,
   mergeStyle,
 } from "./presets.js";
-import { markRange } from "./parser.js";
+import { graphemes, markRange } from "./parser.js";
 import {
   state,
   library,
@@ -130,6 +130,12 @@ function textColorFields() {
 function syncSettings() {
   closeColorPalette();
   const partial = state.scope === "selection";
+  const selectedText =
+    row() && state.range
+      ? Array.from(row().text)
+          .slice(state.range.start, state.range.end)
+          .join("")
+      : "";
   $("scope").value = state.scope;
 
   $("roleTabs").innerHTML = Object.keys(ROLES)
@@ -141,7 +147,7 @@ function syncSettings() {
 
   $("targetHint").textContent = partial
     ? state.range
-      ? `選択した${state.range.end - state.range.start}文字に適用。座布団・行間は選択終了後に編集できます。`
+      ? `選択した${graphemes(selectedText).length}文字に適用。座布団・行間は選択終了後に編集できます。`
       : "中央の入力欄で文字を選択してください。"
     : state.scope === "role"
       ? `${ROLES[state.role]}の共通設定。カード・文字の個別指定が優先されます。`

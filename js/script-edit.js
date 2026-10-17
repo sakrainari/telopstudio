@@ -20,6 +20,7 @@ import {
   updateText,
   selectionRange,
   markRange,
+  tokens,
 } from "./parser.js";
 function syncProjects() {
   $("projects").innerHTML = library.projects
@@ -77,21 +78,19 @@ function quick(action) {
       if (action === "clear" || action === "inherit")
         markRange(r, state.range, {}, action);
       else if (action === "large" || action === "small") {
-        for (let i = state.range.start; i < state.range.end; i++)
-          markRange(
-            r,
-            { start: i, end: i + 1 },
-            {
-              size: Math.max(
-                12,
-                Math.min(
-                  240,
-                  (r.marks[i]?.size || rowStyle(r).size) *
-                    (action === "small" ? 1 / 1.3 : 1.3),
-                ),
+        for (const token of tokens(r, rowStyle(r))) {
+          if (token.end <= state.range.start || token.start >= state.range.end)
+            continue;
+          markRange(r, token, {
+            size: Math.max(
+              12,
+              Math.min(
+                240,
+                token.style.size * (action === "small" ? 1 / 1.3 : 1.3),
               ),
-            },
-          );
+            ),
+          });
+        }
       } else if (action === "important")
         markRange(r, state.range, {
           color: "#ff545f",
@@ -132,8 +131,10 @@ function editText(id, value, source) {
 }
 
 function addRows(rows) {
-  if (current().rows.length + rows.length > 300)
-    return toast("1プロジェクトは300枚までです。", true);
+  if (current().rows.length + rows.length > 300) {
+    toast("1プロジェクトは300枚までです。", true);
+    return false;
+  }
   transaction("テロップを追加", () => {
     current().rows.push(...rows);
     current().selected = rows[0]?.id || current().selected;
@@ -143,6 +144,7 @@ function addRows(rows) {
   state.returnScope = "role";
   state.role = row()?.role || "A";
   notify("refresh");
+  return true;
 }
 
 function syncSelectionTools() {
@@ -224,8 +226,7 @@ export function initScriptEditor() {
     if (rows.some((r) => r.text.length > 5000))
       return toast("1枚5000文字以内にしてください。", true);
     if (!rows.length) return toast("台本を入力してください。");
-    addRows(rows);
-    toast(`${rows.length}枚を追加しました。`);
+    if (addRows(rows)) toast(`${rows.length}枚を追加しました。`);
   };
 
   $("selectAll").onclick = () => {

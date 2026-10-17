@@ -2,6 +2,7 @@ import { clone } from "./presets.js";
 import {
   state,
   current,
+  row,
   replaceProject,
   saveSoon,
   notify,
@@ -58,6 +59,7 @@ function restore(index) {
   state.range = null;
   state.checked.clear();
   if (state.scope === "selection") state.scope = state.returnScope;
+  state.role = row()?.role || "A";
   notify("refresh");
   saveSoon();
   if ($("historyDialog").open) showHistory();
@@ -94,7 +96,20 @@ export function initHistory() {
   };
 
   document.addEventListener("keydown", (e) => {
-    if (e.isComposing || $("nameDialog").open) return;
+    if (e.isComposing || e.defaultPrevented || $("nameDialog").open) return;
+    // Only the central editor participates in project history. Drafts, search,
+    // names and other text fields keep the browser's own text undo stack.
+    const field = e.target.closest("input,textarea,[contenteditable]");
+    if (
+      field &&
+      field.id !== "editor" &&
+      (field.isContentEditable ||
+        field.tagName === "TEXTAREA" ||
+        !["checkbox", "radio", "range", "button", "submit", "reset"].includes(
+          field.type,
+        ))
+    )
+      return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
       e.preventDefault();
       restore(history().cursor + (e.shiftKey ? 1 : -1));

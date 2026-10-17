@@ -1,0 +1,36 @@
+# ブラウザ回帰テスト
+
+アプリ本体は従来どおりHTML / CSS / ES Modulesだけで動作します。このフォルダーは開発用です。テスト実行時のみNode.js、Playwright、ChromeまたはPlaywrightのChromiumを使用します。
+
+## 実行
+
+Playwrightが既に利用可能な環境では、リポジトリのルートで次を実行します。localhostの一時サーバーと独立したブラウザを自動で起動・終了します。普段のブラウザのプロジェクトや保存データには触れません。
+
+```sh
+node tests/regressions.cjs
+```
+
+別の場所にインストールしたPlaywrightと、インストール済みのChromeを使う場合は、環境変数で指定できます。PowerShellの例です。
+
+```powershell
+# 開発用依存はリポジトリの外に置く
+npm install --prefix ../telop-test-tools playwright
+$env:TELOP_PLAYWRIGHT_PATH = (Resolve-Path ../telop-test-tools/node_modules/playwright).Path
+$env:TELOP_CHROME_PATH = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+node tests/regressions.cjs
+```
+
+`TELOP_CHROME_PATH`を省略する場合は、Playwrightが利用するChromiumをあらかじめ用意してください。`TELOP_TEST_FILTER='^[123]:'`などでテスト名を正規表現で絞れます。
+
+## 確認する回帰
+
+1. 一括台本欄のCtrl+Z / Ctrl+Shift+Zはその欄だけを戻し、中央のカードを巻き戻さない。
+2. 話者変更のUndo / Redoで右側の編集対象も戻り、別の話者の設定を誤って変更しない。
+3. アプリ自身が書き出した20MiB超のJSONを読み戻せる。不正なJSONは既存プロジェクトを変更しない。
+4. 300枚から1枚を編集しても未変更299枚のサムネイルを保持する。所要時間とイベントループの停止時間も測定する。
+5. 家族・旗・肌色付き絵文字と結合濁点を見た目の1文字として描画し、部分選択・保存位置も対応する。
+6. 自動強調後の実効サイズから最初の「大きく」「小さく」を計算する。
+7. 上限超過の台本追加は失敗通知を保持し、カード・履歴を変更しない。
+8. 大量描画中のプロジェクト切り替えで古い描画を止め、役割共通設定・部分装飾・Undoで必要なサムネイルだけ更新する。
+
+計測条件は標準デザインの短いカード300枚です。初回生成や長文・複雑な装飾の性能を保証する数値ではありません。Chrome以外や動画編集ソフトへの実取り込みは、この自動テストの対象外です。

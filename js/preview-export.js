@@ -20,16 +20,43 @@ let renderTimer,
   zipBusy = false,
   fontReady = false;
 const cache = new Map();
+const thumbnails = new Map();
+let galleryProject,
+  fontVersion = 0,
+  fontRequestKey,
+  fontRequest;
 let viewportPreview;
+function renderKey(r) {
+  return JSON.stringify([
+    fontVersion,
+    r.text,
+    r.role,
+    r.override,
+    r.marks,
+    current().roles[r.role],
+  ]);
+}
 function getCanvas(r) {
-  const key = r.id;
-  if (!cache.has(key)) cache.set(key, render(r, current().roles));
-  return cache.get(key);
+  const key = renderKey(r),
+    saved = cache.get(r.id);
+  if (saved?.key === key) return saved.canvas;
+  const canvas = render(r, current().roles);
+  // Full-size canvases are expensive. Only retain the currently selected one;
+  // other cards retain their small thumbnail and its dependency key instead.
+  if (r.id === current().selected) {
+    cache.clear();
+    cache.set(r.id, { key, canvas });
+  }
+  return canvas;
 }
 
-function scheduleRender() {
+function scheduleRender(topics) {
   clearTimeout(renderTimer);
   clearTimeout(galleryTimer);
+  if (topics?.has("render")) {
+    fontVersion++;
+    fontRequestKey = null;
+  }
   fontReady = false;
   $("copy").disabled = true;
   $("png").disabled = true;
@@ -44,12 +71,17 @@ function scheduleRender() {
         ),
       ),
     ].join("");
-    await loadFonts(text, [...usedFonts()]);
+    const families = [...usedFonts()],
+      key = JSON.stringify([families, text]);
+    if (key !== fontRequestKey) {
+      fontRequestKey = key;
+      fontRequest = loadFonts(text, families);
+    }
+    await fontRequest;
     if (version !== renderVersion) return;
     fontReady = true;
-    cache.clear();
     drawPreview();
-    galleryTimer = setTimeout(drawGallery, 160);
+    galleryTimer = setTimeout(() => drawGallery(version), 160);
   }, 70);
 }
 
@@ -90,18 +122,49 @@ function drawPreview() {
   }
 }
 
-function drawGallery() {
+async function drawGallery(version) {
   if (!fontReady) return;
+  const p = current();
+  if (galleryProject !== p.id) {
+    thumbnails.clear();
+    galleryProject = p.id;
+  }
+  const ids = new Set(p.rows.map((r) => r.id));
+  for (const id of thumbnails.keys()) if (!ids.has(id)) thumbnails.delete(id);
   const fragment = document.createDocumentFragment();
-  current().rows.forEach((r, i) => {
-    const box = document.createElement("article");
-    box.className = "thumb" + (r.id === current().selected ? " active" : "");
-    box.dataset.id = r.id;
-    const button = document.createElement("button");
-    button.className = "thumb-view checker";
-    button.dataset.choose = r.id;
+  p.rows.forEach((r, i) => {
+    let entry = thumbnails.get(r.id);
+    if (!entry) {
+      const box = document.createElement("article"),
+        button = document.createElement("button"),
+        info = document.createElement("div");
+      box.dataset.id = r.id;
+      button.className = "thumb-view checker";
+      button.dataset.choose = r.id;
+      button.textContent = "プレビュー準備中…";
+      info.className = "thumb-info";
+      info.innerHTML = `<span></span><button data-copy="${r.id}" title="画像をコピー">▣ コピー</button>`;
+      box.append(button, info);
+      entry = { box, button, info, key: null };
+      thumbnails.set(r.id, entry);
+    }
+    const { box, button, info } = entry;
+    box.className = "thumb" + (r.id === p.selected ? " active" : "");
     button.title = `${i + 1}: ${r.text}`;
-
+    info.querySelector("span").textContent =
+      `${String(i + 1).padStart(2, "0")} / ${ROLES[r.role]}`;
+    fragment.append(box);
+  });
+  $("gallery").replaceChildren(fragment);
+  for (const r of p.rows) {
+    if (version !== renderVersion) return;
+    const entry = thumbnails.get(r.id),
+      key = renderKey(r);
+    if (entry.key === key) continue;
+    // Yield between images so typing, Undo, project switches and cancellation
+    // can run even while hundreds of thumbnails are being generated.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (version !== renderVersion) return;
     try {
       const c = getCanvas(r),
         tiny = document.createElement("canvas"),
@@ -112,25 +175,12 @@ function drawGallery() {
       const img = document.createElement("img");
       img.src = tiny.toDataURL();
       img.alt = r.text || "空のテロップ";
-      button.append(img);
+      entry.button.replaceChildren(img);
     } catch (e) {
-      button.textContent = "描画できません：" + e.message;
+      entry.button.textContent = "描画できません：" + e.message;
     }
-
-    box.append(button);
-    const info = document.createElement("div");
-    info.className = "thumb-info";
-    info.innerHTML = `<span>${String(i + 1).padStart(2, "0")} / ${ROLES[r.role]}</span><button data-copy="${r.id}" title="画像をコピー">▣ コピー</button>`;
-    box.append(info);
-    fragment.append(box);
-    if (r.id !== current().selected) cache.delete(r.id);
-  });
-  $("gallery").replaceChildren(fragment);
-
-  // Keep only the selected full-size image. Thumbnails no longer need large canvases.
-
-  for (const id of cache.keys())
-    if (id !== current().selected) cache.delete(id);
+    entry.key = key;
+  }
 }
 
 async function copyRow(r, button) {
@@ -254,8 +304,6 @@ export async function initPreviewExport() {
     const file = $("jsonFile").files[0];
     if (!file) return;
     try {
-      if (file.size > 20 * 1024 * 1024)
-        throw Error("JSONは20MB以内にしてください。");
       importLibrary(JSON.parse(await file.text()), importMode);
       toast("JSONを読み込みました。既存のプロジェクトは保持されています。");
     } catch (e) {
