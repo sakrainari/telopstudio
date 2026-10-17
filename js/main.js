@@ -50,7 +50,7 @@ function syncSettings(){const partial=state.scope==='selection';$('scope').value
  $('targetHint').textContent=partial?(state.range?`選択した${state.range.end-state.range.start}文字に適用。座布団・行間は選択終了後に編集できます。`:'中央の入力欄で文字を選択してください。'):state.scope==='role'?`${ROLES[state.role]}の共通設定。カード・文字の個別指定が優先されます。`:'※このカードだけ変更します。話者全体を変える場合は「役割の共通設定」へ。';
  $('targetHint').classList.toggle('individual-warning',state.scope==='row');
  syncSelectionTools();
- 
+
  document.querySelectorAll('[data-quick]').forEach(b=>b.disabled=!state.range);
  const f=field;
  let html=group('文字',f('font','フォント','select',{values:fontOptions()})+f('size','文字サイズ px','range',{min:12,max:240})+f('letterSpacing','字間 px','metric',{min:-100,max:200})+f('fillOn','塗りを表示','checkbox')+f('gradient','グラデーション','checkbox')+f('color','文字色 / 上','color')+f('color2','文字色 / 下','color'));
