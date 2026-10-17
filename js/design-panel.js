@@ -26,7 +26,14 @@ import {
   subscribe,
 } from "./state.js";
 import { transaction } from "./history.js";
-import { $, option, toast, askName } from "./ui-common.js";
+import {
+  $,
+  option,
+  toast,
+  askName,
+  panelIsOpen,
+  initPanelFolding,
+} from "./ui-common.js";
 let fontOptions;
 let styleClipboard = null;
 function syncSets() {
@@ -108,6 +115,10 @@ function group(title, content) {
   return `<fieldset ${title === "座布団・配置" ? 'id="boxStyleSettings"' : ""} class="field-group"><legend>${title}</legend>${content}</fieldset>`;
 }
 
+function section(title, content, key, initialOpen = false, status = "") {
+  return `<details class="settings-section" data-panel-key="${key}" ${panelIsOpen(key, initialOpen) ? "open" : ""}><summary><span>${title}</span>${status ? `<span class="section-status">${status}</span>` : ""}</summary>${content}</details>`;
+}
+
 function syncSettings() {
   closeColorPalette();
   const partial = state.scope === "selection";
@@ -136,18 +147,23 @@ function syncSettings() {
 
   const f = field;
 
-  let html = group(
+  let html = section(
     "文字",
-    f("font", "フォント", "select", { values: fontOptions() }) +
-      f("size", "文字サイズ px", "range", { min: 12, max: 240 }) +
-      f("letterSpacing", "字間 px", "metric", { min: -100, max: 200 }) +
-      f("fillOn", "塗りを表示", "checkbox") +
-      f("gradient", "グラデーション", "checkbox") +
-      f("color", "文字色 / 上", "color") +
-      f("color2", "文字色 / 下", "color"),
+    group(
+      "文字",
+      f("font", "フォント", "select", { values: fontOptions() }) +
+        f("size", "文字サイズ px", "range", { min: 12, max: 240 }) +
+        f("letterSpacing", "字間 px", "metric", { min: -100, max: 200 }) +
+        f("fillOn", "塗りを表示", "checkbox") +
+        f("gradient", "グラデーション", "checkbox") +
+        f("color", "文字色 / 上", "color") +
+        f("color2", "文字色 / 下", "color"),
+    ),
+    "text",
+    true,
   );
 
-  html += group(
+  let outlineHtml = group(
     "フチの重ね方",
     f("joinOutlines", "文字間のフチを結合", "checkbox") +
       '<p class="hint">フチを層ごとにまとめ、重なった所の境目をなくします。離れている場合は字間を詰めるか、フチを太くしてください。</p>',
@@ -155,7 +171,7 @@ function syncSettings() {
   const edges = settingsStyle().edges;
   for (let i = 0; i < edges.length; i++) {
     if (i > 0 && !edges[i].on) continue;
-    html += group(
+    outlineHtml += group(
       `フチ ${i + 1}`,
       f(
         `edges.${i}.on`,
@@ -174,12 +190,12 @@ function syncSettings() {
     );
   }
   const nextEdge = edges.findIndex((edge, index) => index > 0 && !edge.on);
-  html += `<div class="edge-add"><button type="button" data-add-edge="${nextEdge}" ${nextEdge < 0 ? "disabled" : ""}>＋ フチを追加${nextEdge < 0 ? "（最大3層）" : ""}</button></div>`;
+  outlineHtml += `<div class="edge-add"><button type="button" data-add-edge="${nextEdge}" ${nextEdge < 0 ? "disabled" : ""}>＋ フチを追加${nextEdge < 0 ? "（最大3層）" : ""}</button></div>`;
 
-  const detailOpen = $("strokeDetails")?.open;
+  const detailOpen = panelIsOpen("stroke");
 
-  html +=
-    `<details id="strokeDetails" ${detailOpen ? "open" : ""}><summary>線の詳細設定</summary>` +
+  outlineHtml +=
+    `<details data-panel-key="stroke" id="strokeDetails" ${detailOpen ? "open" : ""}><summary>線の詳細設定</summary>` +
     group(
       "フチの角の形",
       f("lineJoin", "角の形", "select", {
@@ -194,30 +210,52 @@ function syncSettings() {
     ) +
     "</details>";
 
-  html += group(
-    "ドロップシャドウ",
-    f("shadow.on", "有効", "checkbox") +
-      f("shadow.blur", "ぼかし", "range", { min: 0, max: 50 }) +
-      f("shadow.distance", "距離 px", "range", { min: 0, max: 120 }) +
-      f("shadow.angle", "影の方向", "direction") +
-      f("shadow.opacity", "不透明度", "range", { min: 0, max: 1, step: 0.05 }) +
-      f("shadow.color", "色", "color"),
+  html += section(
+    "フチ",
+    outlineHtml,
+    "outlines",
+    false,
+    `${edges.filter((edge) => edge.on).length}層`,
+  );
+  html += section(
+    "影",
+    group(
+      "ドロップシャドウ",
+      f("shadow.on", "有効", "checkbox") +
+        f("shadow.blur", "ぼかし", "range", { min: 0, max: 50 }) +
+        f("shadow.distance", "距離 px", "range", { min: 0, max: 120 }) +
+        f("shadow.angle", "影の方向", "direction") +
+        f("shadow.opacity", "不透明度", "range", {
+          min: 0,
+          max: 1,
+          step: 0.05,
+        }) +
+        f("shadow.color", "色", "color"),
+    ),
+    "shadow",
+    false,
+    settingsStyle().shadow.on ? "ON" : "OFF",
   );
 
   {
-    html += group(
-      "行の配置",
-      f("lineGap", "行間 px", "metric", { min: -100, max: 300 }),
+    html += section(
+      "行間",
+      group(
+        "行の配置",
+        f("lineGap", "行間 px", "metric", { min: -100, max: 300 }),
+      ),
+      "lines",
     );
-    html += group(
+    let boxHtml = group(
       "座布団・配置",
-      f("align", "文字揃え", "select", {
-        values: [
-          ["left", "左"],
-          ["center", "中央"],
-          ["right", "右"],
-        ],
-      }) +
+      f("box.on", "座布団を表示", "checkbox") +
+        f("align", "文字揃え", "select", {
+          values: [
+            ["left", "左"],
+            ["center", "中央"],
+            ["right", "右"],
+          ],
+        }) +
         f("box.mode", "背景の範囲", "select", {
           values: [
             ["all", "すべての行"],
@@ -242,9 +280,9 @@ function syncSettings() {
     );
 
     const box = settingsStyle().box,
-      boxDetailOpen = $("boxDetails")?.open;
+      boxDetailOpen = panelIsOpen("box-details");
 
-    html += group(
+    boxHtml += group(
       "座布団内の文字位置",
       '<div class="anchor-grid" aria-label="座布団内の配置">' +
         ["top", "center", "bottom"]
@@ -264,8 +302,8 @@ function syncSettings() {
         '</div><p class="hint">座布団ONで有効。固定サイズにすると配置の違いがわかりやすくなります。</p>',
     );
 
-    html +=
-      `<details id="boxDetails" ${boxDetailOpen ? "open" : ""}><summary>座布団のサイズ・位置の詳細</summary>` +
+    boxHtml +=
+      `<details data-panel-key="box-details" id="boxDetails" ${boxDetailOpen ? "open" : ""}><summary>座布団のサイズ・位置の詳細</summary>` +
       group(
         "サイズと微調整",
         f("box.sizeMode", "サイズ", "select", {
@@ -290,19 +328,22 @@ function syncSettings() {
       ) +
       "</details>";
 
-    html += group(
+    html += section("座布団", boxHtml, "box", false, box.on ? "ON" : "OFF");
+    html += section(
       "自動強調",
-      f("auto.on", "数字・記号・括弧", "checkbox") +
-        f("auto.scale", "拡大倍率", "range", { min: 1, max: 2, step: 0.05 }) +
-        f("auto.color", "強調色", "color"),
+      group(
+        "自動強調",
+        f("auto.on", "数字・記号・括弧", "checkbox") +
+          f("auto.scale", "拡大倍率", "range", { min: 1, max: 2, step: 0.05 }) +
+          f("auto.color", "強調色", "color"),
+      ),
+      "auto",
+      false,
+      settingsStyle().auto.on ? "ON" : "OFF",
     );
   }
 
   $("settings").innerHTML = html;
-  const style = settingsStyle(),
-    disabled = partial || (state.scope !== "role" && !row());
-  $("designQuickEffects").innerHTML =
-    `<div class="box-switch"><label for="setting-box-on"><input id="setting-box-on" type="checkbox" ${style.box.on ? "checked" : ""} ${disabled ? "disabled" : ""}> 座布団（文字の背景）</label><button type="button" id="showBoxSettings" ${disabled ? "disabled" : ""}>詳細 ↓</button></div>${partial ? '<p class="hint">座布団は話者共通・テロップ個別で設定します。</p>' : ""}`;
 
   $("settings")
     .querySelectorAll("fieldset")
@@ -387,6 +428,7 @@ function usedProjectColors() {
 
 export function initDesignPanel(options) {
   fontOptions = options.fontOptions;
+  initPanelFolding(document.querySelector(".settings-panel"));
   initColorPalette({
     readUsedColors: usedProjectColors,
     applyColor: (path, color) =>
@@ -395,17 +437,6 @@ export function initDesignPanel(options) {
         "色を変更",
         `${current().id}:${state.scope}:${state.role}:${row()?.id}:${state.range?.start}:${path}`,
       ),
-  });
-  $("designQuickEffects").addEventListener("change", (event) => {
-    if (event.target.id === "setting-box-on")
-      applyPatch({ box: { on: event.target.checked } }, "座布団を切り替え");
-  });
-  $("designQuickEffects").addEventListener("click", (event) => {
-    if (event.target.closest("#showBoxSettings"))
-      $("boxStyleSettings").scrollIntoView({
-        block: "start",
-        behavior: "smooth",
-      });
   });
   $("scope").onchange = () => {
     state.scope = $("scope").value;
@@ -453,6 +484,15 @@ export function initDesignPanel(options) {
       title,
       `${current().id}:${state.scope}:${state.role}:${row()?.id}:${state.range?.start}:${path}`,
     );
+    const sectionKey = {
+      "box.on": "box",
+      "shadow.on": "shadow",
+      "auto.on": "auto",
+    }[path];
+    if (sectionKey)
+      $("settings").querySelector(
+        `[data-panel-key="${sectionKey}"] > summary .section-status`,
+      ).textContent = value ? "ON" : "OFF";
     if (path === "lineJoin") notify("design");
     if (path === "shadow.angle") syncShadowDirection(value);
     if (/^edges\.[12]\.on$/.test(path)) notify("design");

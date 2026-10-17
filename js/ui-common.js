@@ -56,3 +56,45 @@ export function initCommonUI() {
     if (notice) toast(notice.message, notice.error);
   });
 }
+
+// Layout preferences are separate from project data and editing history.
+const PANEL_KEY = "telop-studio-panels-v1";
+let panelStates = {};
+export function panelIsOpen(key, fallback = false) {
+  const existing = document.querySelector(`details[data-panel-key="${key}"]`);
+  return existing ? existing.open : (panelStates[key] ?? fallback);
+}
+export function initPanelFolding(root) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PANEL_KEY) || "{}");
+    panelStates = Object.fromEntries(
+      Object.entries(saved || {}).filter(
+        ([key, value]) =>
+          /^[a-z-]{1,40}$/.test(key) && typeof value === "boolean",
+      ),
+    );
+  } catch {
+    panelStates = {};
+  }
+  root.querySelectorAll("details[data-panel-key]").forEach((panel) => {
+    if (typeof panelStates[panel.dataset.panelKey] === "boolean")
+      panel.open = panelStates[panel.dataset.panelKey];
+  });
+  root.addEventListener(
+    "toggle",
+    (event) => {
+      const panel = event.target;
+      if (!panel.matches("details[data-panel-key]") || !panel.isConnected)
+        return;
+      const key = panel.dataset.panelKey;
+      if (panelStates[key] === panel.open) return;
+      panelStates[key] = panel.open;
+      try {
+        localStorage.setItem(PANEL_KEY, JSON.stringify(panelStates));
+      } catch {
+        /* Folding remains usable without storage. */
+      }
+    },
+    true,
+  );
+}
