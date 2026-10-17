@@ -1,5 +1,6 @@
 import { $ } from "./ui-common.js";
 import { initPreviewReference } from "./preview-reference.js";
+import { initPreviewExpansion } from "./preview-expansion.js";
 
 const STORAGE_KEY = "telop-studio-preview-v1";
 const BACKGROUNDS = ["checker", "black", "scene"];
@@ -46,6 +47,7 @@ export function initShortPreview() {
       persist();
     },
   });
+  const expansion = initPreviewExpansion();
 
   function persist() {
     try {
@@ -92,6 +94,7 @@ export function initShortPreview() {
   }
 
   function updateChrome() {
+    expansion.sync(view.mode);
     const short = view.mode === "short";
     $("preview").classList.toggle("short-mode", short);
     $("preview").classList.remove(...BACKGROUNDS);

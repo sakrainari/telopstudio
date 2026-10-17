@@ -672,6 +672,154 @@ test("11: real-screen references and guides persist without entering PNG or proj
   assert(await page.locator("#referenceRemove").isDisabled());
 });
 
+test("12: portrait preview grows vertically and expands without duplicating or changing output", async (page) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const stage = () => page.locator("#shortStage").boundingBox();
+  const initial = await stage();
+  assert(
+    initial.height >= 650,
+    `normal portrait is only ${initial.height}px high`,
+  );
+  assert(
+    initial.y + initial.height <= 1000,
+    `normal frame fits vertically: ${JSON.stringify(initial)}`,
+  );
+  assert(Math.abs(initial.width / initial.height - 9 / 16) < 0.005);
+  if (process.env.TELOP_NORMAL_SCREENSHOT)
+    await page.screenshot({ path: process.env.TELOP_NORMAL_SCREENSHOT });
+  const original = await page
+    .locator("#preview canvas")
+    .evaluate((canvas) => canvas.toDataURL());
+  const baselineDownload = page.waitForEvent("download");
+  await page.locator("#png").click();
+  const baselinePNG = fs.readFileSync(await (await baselineDownload).path());
+  await page
+    .locator("#preview")
+    .evaluate((node) => (window.__originalPreview = node));
+  await page
+    .locator("#shortTools")
+    .evaluate((node) => (window.__originalShortTools = node));
+  const project = await state(page, "JSON.stringify(s.current())");
+  await page.locator("#expandPreview").click();
+  await page.locator("#expandedPreviewDialog").waitFor({ state: "visible" });
+  let large = await stage();
+  assert(
+    large.height > initial.height + 100,
+    `expanded portrait should grow: ${JSON.stringify({ initial, large })}`,
+  );
+  assert(large.y >= 0 && large.y + large.height <= 1000);
+  assert(Math.abs(large.width / large.height - 9 / 16) < 0.005);
+  assert.equal(await page.locator("#preview").count(), 1);
+  assert.equal(await page.locator("#shortTools").count(), 1);
+  assert.equal(await page.locator("#copy").count(), 1);
+  assert(
+    await page.evaluate(
+      () =>
+        document.querySelector("#preview") === window.__originalPreview &&
+        document.querySelector("#shortTools") === window.__originalShortTools,
+    ),
+  );
+  await page.locator(".short-caption").focus();
+  await page.keyboard.press("Shift+ArrowUp");
+  assert.match(await page.locator("#shortPosition").innerText(), /67%/);
+  await page.locator("#shortScale").fill("75");
+  assert.equal(await page.locator("#shortScaleValue").innerText(), "75%");
+  assert.equal(
+    await page
+      .locator("#preview canvas")
+      .evaluate((canvas) => canvas.toDataURL()),
+    original,
+  );
+  assert.equal(await state(page, "JSON.stringify(s.current())"), project);
+  if (process.env.TELOP_LARGE_SCREENSHOT)
+    await page.screenshot({ path: process.env.TELOP_LARGE_SCREENSHOT });
+  await page.locator(".reference-tools > summary").first().click();
+  await page.locator("#referenceFile").setInputFiles({
+    name: "test-reference.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(original.split(",")[1], "base64"),
+  });
+  await page.waitForFunction(
+    () => document.querySelector(".reference-image")?.naturalWidth > 0,
+  );
+  assert(
+    await page
+      .locator("#expandedPreviewDialog")
+      .evaluate((dialog) => dialog.open),
+  );
+  const download = page.waitForEvent("download");
+  await page.locator("#png").click();
+  const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+  assert.equal(
+    hash(fs.readFileSync(await (await download).path())),
+    hash(baselinePNG),
+  );
+  await page.keyboard.press("Escape");
+  await page.locator("#expandedPreviewDialog").waitFor({ state: "hidden" });
+  assert(
+    await page
+      .locator("#preview")
+      .evaluate((node) =>
+        node.parentElement.classList.contains("center-panel"),
+      ),
+  );
+  assert(
+    await page
+      .locator("#shortTools")
+      .evaluate((node) =>
+        node.parentElement.classList.contains("center-panel"),
+      ),
+  );
+  assert(
+    await page
+      .locator("#expandPreview")
+      .evaluate((node) => document.activeElement === node),
+  );
+  assert.equal(await page.locator("#shortScale").inputValue(), "75");
+  assert.equal(await page.locator(".reference-image").count(), 1);
+  for (const width of [1024, 1280, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    const normal = await stage();
+    assert(
+      Math.abs(normal.width / normal.height - 9 / 16) < 0.005,
+      `normal aspect at ${width}`,
+    );
+    assert(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      `normal width ${width}`,
+    );
+    await page.locator("#expandPreview").click();
+    const expanded = await stage();
+    assert(
+      Math.abs(expanded.width / expanded.height - 9 / 16) < 0.005,
+      `expanded aspect at ${width}`,
+    );
+    assert(
+      expanded.y + expanded.height <= 900 &&
+        expanded.x + expanded.width <= width,
+      `expanded frame fits ${width}`,
+    );
+    await page.locator("#closeExpandedPreview").click();
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator("#expandPreview").click();
+  assert(
+    !(await page
+      .locator("#expandedControls")
+      .evaluate((details) => details.open)),
+  );
+  const small = await stage();
+  assert(Math.abs(small.width / small.height - 9 / 16) < 0.005);
+  assert(small.y + small.height <= 844 && small.x + small.width <= 390);
+  await page.locator("#expandedControls > summary").click();
+  assert(await page.locator("#shortScale").isVisible());
+  await page.locator("#closeExpandedPreview").click();
+  await page.locator('[data-preview-mode="single"]').click();
+  assert(await page.locator("#expandPreview").isHidden());
+});
+
 (async () => {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch({

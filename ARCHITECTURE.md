@@ -15,6 +15,7 @@
 | js/font-panel.js | フォント一覧、検索、追加・削除、全件適用の画面 |
 | js/short-preview.js | 9:16の確認フレーム、ドラッグ・倍率・ガイド、ブラウザごとのプレビュー設定 |
 | js/preview-reference.js | 実画面画像の読み込み・ブラウザ保存、表示濃度・合わせ方、余白ガイドの調整。出力Canvasには描かない |
+| js/preview-expansion.js | 拡大ダイアログへ既存プレビューと操作部品を移動し、閉じると元の位置へ戻す。Canvasや入力欄は複製しない |
 | js/preview-export.js | 描画予約、画像キャッシュ、プレビュー・ギャラリー、画像とJSONの入出力の画面 |
 | js/ui-common.js | DOM補助、HTMLエスケープ、トースト、名前入力、共通ダイアログ、保存状態表示 |
 
@@ -91,3 +92,7 @@ JSONは200MiB超のファイルをfile.text()で読む前に確認します。�
 preview-referenceは参考画像をblob URLのimgとして表示する。画像Blobはtelop-studio-referenceデータベースのimages/currentへ保存し、表示・濃度・合わせ方・ガイドはLocalStorageのtelop-studio-reference-v1へ保存する。プロジェクト保存と履歴は変更しない。IndexedDB書き込みを直列化し、画像の置換・削除と初期復元は世代で競合を防ぐ。無効画像で現在の画像を消さず、古いblob URLを解放する。
 
 short-previewは表示用フレームを作るたびにreference.updateを呼ぶ。参考画像はCanvasの背面、ガイドは前面にDOMで置き、renderer・exporterのCanvasへ合成しない。初回のモードはshortとし、singleを含む保存済みモードは尊重する。ガイドは共通の調整可能な目安であり、各アプリのUI範囲を保証する固定仕様ではない。
+
+## Ver1.7.1の拡大プレビュー
+
+通常の縦プレビューはビューポート高に応じて領域を確保し、プレビューのcontent boxを基準にcqw/cqhで9:16を収める。幅が狭い場合も片方向だけ圧縮しない。preview-expansionは既存のpreview・背景操作・shortTools・書き出しボタンをコメントノードの戻り位置を残してdialogへ移動し、close時に元へ戻す。既存のCanvas・イベントリスナー・画像・設定を保持し、別の出力や編集状態は作らない。拡大表示そのものは保存せず、モードがsingleへ変わる場合は閉じる。通常画面のスクロール位置と開いたボタンへのフォーカスを復元する。
