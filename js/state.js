@@ -46,10 +46,7 @@ export function initState(sampleScript) {
     library = readLibrary();
   } catch {
     storageBlocked = true;
-    report(
-      "保存データを読み込めません。既存データは上書きしません。JSON保存で作業を保管してください。",
-      true,
-    );
+    reportStartupError();
   }
   if (!library?.projects.length) {
     const p = project("はじめてのテロップ", parseScript(sampleScript));
@@ -180,4 +177,14 @@ export function importLibrary(data, mode) {
   state.checked.clear();
   notify("refresh");
   saveSoon();
+}
+
+// Repeat the read failure after other startup warnings so it remains visible.
+export function reportStartupError() {
+  if (storageBlocked) {
+    report(
+      "保存データを読み込めません。既存データは上書きしません。JSON保存で作業を保管してください。",
+      true,
+    );
+  }
 }

@@ -244,7 +244,7 @@ export async function initFontPanel() {
       toast(err.message, true);
     }
   };
-  subscribe(["refresh", "design", "fonts"], syncFonts);
+  subscribe(["refresh", "design"], syncFonts);
   const fontInit = await initUserFonts();
 
   if (fontInit.error)
@@ -252,15 +252,15 @@ export async function initFontPanel() {
       "追加フォントの保存場所を開けませんでした。追加フォントは今回だけ使えます。",
       true,
     );
+}
 
-  {
-    const missing = [...usedFonts()].filter(
-      (f) => !allFonts().some((x) => x.family === f),
+export function showMissingFontWarning() {
+  const missing = [...usedFonts()].filter(
+    (f) => !allFonts().some((x) => x.family === f),
+  );
+  if (missing.length)
+    toast(
+      `このPCに未登録のフォントがあります：${missing.join("、")}。「＋ 自分のフォントを追加」から追加してください。`,
+      true,
     );
-    if (missing.length)
-      toast(
-        `このPCに未登録のフォントがあります：${missing.join("、")}。「＋ 自分のフォントを追加」から追加してください。`,
-        true,
-      );
-  }
 }

@@ -48,19 +48,7 @@ function syncCards() {
     '<p class="empty-list">最初の言葉から、はじめよう。<br>「＋ テロップ追加」で作成できます。</p>';
 }
 
-function captureSelection(el, id) {
-  if (current().selected !== id) {
-    current().selected = id;
-    state.role = row().role;
-    $("editor").value = row().text;
-    $("editor").disabled = false;
-    document
-      .querySelectorAll(".card")
-      .forEach((c) => c.classList.toggle("active", c.dataset.id === id));
-    $("currentLabel").textContent =
-      `CUT ${String(current().rows.indexOf(row()) + 1).padStart(2, "0")} / ${ROLES[row().role]}`;
-  }
-
+function captureSelection(el) {
   const range = selectionRange(el.value, el.selectionStart, el.selectionEnd);
   state.range = range.end > range.start ? range : null;
 
@@ -249,7 +237,7 @@ export function initScriptEditor() {
 
   for (const event of ["select", "pointerup", "keyup"])
     $("editor").addEventListener(event, () => {
-      if (row()) captureSelection($("editor"), current().selected);
+      if (row()) captureSelection($("editor"));
     });
 
   $("cards").addEventListener("change", (e) => {

@@ -487,7 +487,7 @@ export function initDesignPanel(options) {
     syncSettings();
     syncStyleTransfer();
   });
-  subscribe(["design", "fonts"], syncSettings);
+  subscribe(["design"], syncSettings);
   subscribe(["presets"], syncSets);
   subscribe(["checked"], syncStyleTransfer);
 }

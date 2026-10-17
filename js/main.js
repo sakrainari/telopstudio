@@ -1,8 +1,12 @@
-import { initState, notify, saveOnExit } from "./state.js";
+import { initState, notify, saveOnExit, reportStartupError } from "./state.js";
 import { $, initCommonUI } from "./ui-common.js";
 import { initHistory } from "./history.js";
 import { initScriptEditor } from "./script-edit.js";
-import { initFontPanel, fontOptions } from "./font-panel.js";
+import {
+  initFontPanel,
+  fontOptions,
+  showMissingFontWarning,
+} from "./font-panel.js";
 import { initDesignPanel } from "./design-panel.js";
 import { initPreviewExport } from "./preview-export.js";
 
@@ -16,3 +20,5 @@ initDesignPanel({ fontOptions });
 const previewReady = initPreviewExport();
 notify("refresh");
 await previewReady;
+showMissingFontWarning();
+reportStartupError();
